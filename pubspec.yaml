@@ -54,11 +54,25 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-uses-material-design: true
-
-assets:
-  - fonts
-  - IconeBasketBallAcoes.png
+  assets:
+    - assets/images/3PointActionIcon.png
+    - assets/images/2PointActionIcon.png
+    - assets/images/1PointActionIcon.png
+    - assets/images/3PointMissedActionIcon.png
+    - assets/images/2PointMissedActionIcon.png
+    - assets/images/1PointMissedActionIcon.png
+    - assets/images/StealActionIcon.png
+    - assets/images/TurnOverActionIcon.png
+    - assets/images/BlockActionIcon.png
+    - assets/images/AssistActionIcon.png
+    - assets/images/OffensiveReboundActionIcon.png
+    - assets/images/DefensiveReboundActionIcon.png
+    - assets/images/FoulActionIcon.png
+    - assets/images/OptionsIcon.png
+    - assets/images/SubstitutionActionIcon.png
+    - assets/images/Ball.png
+    - assets/images/basketball.png
+    - assets/images/west_harden-cutout.png
 fonts:
   - family: Inter
     fonts:
