@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:orangescoutfe/view/historyScreen.dart';
 import 'view/gameScreen.dart'; // Certifique-se de que o arquivo da tela está salvo como game_screen.dart
 import 'view/historyScreen.dart';
+import 'view/selectGameScreen.dart';
+import 'view/mainScreen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,8 +23,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '': (context) => HistoryScreen(), 
-        '/history': (context) => HistoryScreen(),//tela history
-        '': (context) =>
+        '/history': (context) => HistoryScreen(),//tela historico
       },
       home: GameScreen(),
     );
