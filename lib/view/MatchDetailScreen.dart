@@ -15,8 +15,7 @@ class MatchDetailView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Score: ${match['score']}'),
-            // detalhes
-          ],
+            // vou criar os detalhes do jogo
         ),
       ),
     );
