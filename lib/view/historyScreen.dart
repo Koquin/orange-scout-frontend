@@ -1,10 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:orangescoutfe/view/MatchDetailScreen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  _HistoryScreenState createState() => _HistoryScreenState();
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {

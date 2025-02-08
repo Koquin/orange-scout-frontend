@@ -73,6 +73,7 @@ flutter:
     - assets/images/Ball.png
     - assets/images/basketball.png
     - assets/images/west_harden-cutout.png
+    - assets/images/OrangeScoutLogo-cutout.png
 fonts:
   - family: Inter
     fonts:

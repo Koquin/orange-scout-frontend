@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'selectGameScreen.dart';
+import 'historyScreen.dart';
 
 class MainScreen extends StatefulWidget {
   @override
@@ -12,7 +13,7 @@ class _MainScreenState extends State<MainScreen> {
   // Lista de telas que serão mostradas na Navigation Bar
   final List<Widget> _screens = [
     SelectGameScreen(),  // Tela de seleção do modo de jogo
-    //Teams(),         // Substitua por outra tela que deseja adicionar
+    HistoryScreen(),         // Substitua por outra tela que deseja adicionar
   ];
 
   void _onItemTapped(int index) {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:orangescoutfe/view/historyScreen.dart';
-import 'view/gameScreen.dart'; // Certifique-se de que o arquivo da tela está salvo como game_screen.dart
-import 'view/historyScreen.dart';
-import 'view/selectGameScreen.dart';
 import 'view/mainScreen.dart';
+import 'view/historyScreen.dart';
+import 'view/gameScreen.dart';
+import 'view/selectGameScreen.dart';
+import 'view/loginScreen.dart'; // Importa a tela de login
 
 void main() {
   runApp(const MyApp());
@@ -20,12 +20,13 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.orange,
       ),
-      initialRoute: '/',
+      home: LoginScreen(), // Sempre inicia na tela de login
       routes: {
-        '': (context) => HistoryScreen(), 
-        '/history': (context) => HistoryScreen(),//tela historico
+        '/main': (context) => MainScreen(),
+        '/history': (context) => HistoryScreen(),
+        '/game': (context) => GameScreen(),
+        '/login': (context) => LoginScreen(),
       },
-      home: GameScreen(),
     );
   }
 }

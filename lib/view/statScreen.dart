@@ -1,4 +1,5 @@
 import 'package:orangescoutfe/view/MatchDetailScreen.dart';
+import 'package:flutter/material.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});

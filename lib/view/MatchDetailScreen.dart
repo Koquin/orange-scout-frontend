@@ -16,7 +16,8 @@ class MatchDetailView extends StatelessWidget {
           children: [
             Text('Score: ${match['score']}'),
             // vou criar os detalhes do jogo
-        ),
+        ],
+      ),
       ),
     );
   }
