@@ -78,6 +78,9 @@ flutter:
     - assets/images/OrangeScoutLogo-cutout.png
     - assets/images/OrangeScoutMain.png
     - assets/images/pngwing.com.png
+    - assets/images/TeamsButtonIcon.png
+    - assets/images/StartGameButtonIcon.png
+    - assets/images/HistoryButtonIcon.png
 fonts:
   - family: Inter
     fonts:

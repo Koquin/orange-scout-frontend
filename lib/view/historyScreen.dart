@@ -113,19 +113,34 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 },
               ),
       ),
+
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.brown[900],
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.white,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.play_arrow), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.group), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: ''),
+        type: BottomNavigationBarType.fixed,
+        items: [
+          BottomNavigationBarItem(
+            icon: Image.asset('assets/images/TeamsButtonIcon.png', width: 50, height: 50),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Image.asset('assets/images/StartGameButtonIcon.png', width: 50, height: 50),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Image.asset('assets/images/HistoryButtonIcon.png', width: 50, height: 50),
+            label: '',
+          ),
         ],
         onTap: (index) {
           // Adicionar navegação entre telas
         },
+
+        showSelectedLabels: false,
+        showUnselectedLabels: false,
       ),
+
     );
   }
 }
