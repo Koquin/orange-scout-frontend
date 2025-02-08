@@ -51,30 +51,63 @@ class _HistoryScreenState extends State<HistoryScreen> {
             : ListView.builder(
                 itemCount: matches.length,
                 itemBuilder: (context, index) {
-                  return Card(
-                    color: Colors.black54,
-                    margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                    child: ListTile(
-                      leading: const Icon(Icons.bar_chart, color: Colors.white, size: 30),
-                      title: Text(
-                        '${matches[index]['team1']} vs ${matches[index]['team2']}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '${matches[index]['date']}\n${matches[index]['score']}',
-                        style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      trailing: const Icon(Icons.shield, color: Colors.white, size: 30),
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MatchDetailView(match: matches[index]),
+                        ),
+                      );
+                    },
+                    child: Card(
+                      color: Colors.black54,
+                      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Ícone e nome do Time 1
+                            Row(
+                              children: [
+                                Image.asset('assets/images/pngwing.com.png', width: 60, height: 60),
+                                const SizedBox(width: 10),
+                                Text(
+                                  matches[index]['team1'],
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
 
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MatchDetailView(match: matches[index]),
-                          ),
-                        );
-                      },
-                      
+                            // Placar
+                            Column(
+                              children: [
+                                Text(
+                                  matches[index]['date'],
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                                Text(
+                                  matches[index]['score'],
+                                  style: const TextStyle(color: Colors.orange, fontSize: 18, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+
+                            // Ícone e nome do Time 2
+                            Row(
+                              children: [
+                                Text(
+                                  matches[index]['team2'],
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 10),
+                                Image.asset('assets/images/pngwing.com.png', width: 60, height: 60),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },
