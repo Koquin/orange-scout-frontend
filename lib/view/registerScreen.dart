@@ -1,30 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'loginScreen.dart';
 
-import 'registerScreen.dart'; // Importa a tela de registro
-
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({Key? key}) : super(key: key);
 
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  _RegisterScreenState createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  Future<void> _login() async {
+  Future<void> _register() async {
     setState(() {
       _isLoading = true;
     });
 
+    final String username = _usernameController.text.trim();
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
+    if (username.isEmpty || email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please fill in all fields')),
       );
@@ -34,23 +35,30 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final Uri url = Uri.parse('http://localhost:8080/auth/login');
+    final Uri url = Uri.parse('http://localhost:8080/auth/register');
 
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+        body: jsonEncode({
+          'username': username,
+          'email': email,
+          'password': password,
+        }),
       );
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        String token = responseData['token'];
-
-        Navigator.pushReplacementNamed(context, '/main');
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Account created! You can now log in.')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid credentials')),
+          SnackBar(content: Text('Registration failed. Try again.')),
         );
       }
     } catch (e) {
@@ -64,9 +72,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Widget customButton({required String text, required VoidCallback onPressed}) {
+  Widget customButton({
+    required String text,
+    required VoidCallback onPressed,
+    bool isLoading = false,
+  }) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed, // Desativa enquanto carrega
       style: ElevatedButton.styleFrom(
         backgroundColor: Color(0xFFFF9800),
         padding: EdgeInsets.symmetric(vertical: 15, horizontal: 30),
@@ -75,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         elevation: 5,
       ),
-      child: _isLoading
+      child: isLoading
           ? CircularProgressIndicator(color: Colors.white)
           : Text(
         text,
@@ -93,6 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Center(
         child: Container(
+          padding: const EdgeInsets.all(20.0),
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
@@ -111,13 +124,31 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset('assets/images/OrangeScoutLogo-cutout.png'),
-              SizedBox(height: 40), // Reduzido para aproximar a imagem dos campos
+              SizedBox(height: 40),
+              SizedBox(
+                height: 40, // Define a altura do campo
+                width: 650,
+                child: TextField(
+                  controller: _usernameController,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Color(0xFFF57C00),
+                    hintText: "Username",
+                    hintStyle: TextStyle(color: Color(0xFFFFCC80)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: EdgeInsets.symmetric(vertical: 5, horizontal: 15),
+                  ),
+                ),
+              ),
+              SizedBox(height: 10), // Espaço entre os campos
               SizedBox(
                 height: 40, // Define a altura do campo
                 width: 650,
                 child: TextField(
                   controller: _emailController,
                   style: TextStyle(color: Colors.white),
+                  obscureText: true,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Color(0xFFF57C00),
@@ -146,22 +177,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               SizedBox(height: 20),
               customButton(
-                text: "Login",
-                onPressed: _isLoading ? () {} : _login,
+                text: "Register",
+                isLoading: _isLoading,
+                onPressed: _register,
               ),
               SizedBox(height: 20),
               GestureDetector(
                 onTap: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => RegisterScreen()),
+                    MaterialPageRoute(builder: (context) => LoginScreen()),
                   );
                 },
                 child: Text(
-                  "I don't have an account",
+                  "I already have an account",
                   style: TextStyle(
                     color: Colors.blue,
                     decoration: TextDecoration.underline,

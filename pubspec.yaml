@@ -31,6 +31,7 @@ dependencies:
   flutter_screenutil: ^5.9.1
   flutter:
     sdk: flutter
+  http: ^0.13.6
 
 
 
@@ -74,6 +75,7 @@ flutter:
     - assets/images/basketball.png
     - assets/images/west_harden-cutout.png
     - assets/images/OrangeScoutLogo-cutout.png
+    - assets/images/OrangeScoutMain.png
 fonts:
   - family: Inter
     fonts:

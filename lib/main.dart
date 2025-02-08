@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'view/mainScreen.dart';
 import 'view/historyScreen.dart';
 import 'view/gameScreen.dart';
-import 'view/selectGameScreen.dart';
+import 'view/registerScreen.dart';
 import 'view/loginScreen.dart'; // Importa a tela de login
 
 void main() {
@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Basketball Game',
+      title: 'Orange Scout',
       theme: ThemeData(
         primarySwatch: Colors.orange,
       ),
@@ -26,6 +26,7 @@ class MyApp extends StatelessWidget {
         '/history': (context) => HistoryScreen(),
         '/game': (context) => GameScreen(),
         '/login': (context) => LoginScreen(),
+        '/register': (context) => RegisterScreen(),
       },
     );
   }
