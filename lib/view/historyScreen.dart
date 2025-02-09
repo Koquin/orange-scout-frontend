@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:orangescoutfe/view/MatchDetailScreen.dart';
 import 'package:orangescoutfe/util/verification_banner.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -14,7 +15,7 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> matches = [];
-  String token = 'seu_token_aqui';
+  String token = ''; //carregar o token de SharedPreferences //fetchMatches();
   InterstitialAd? _interstitialAd;
   bool isLoading = true;
   bool hasError = false;
@@ -22,8 +23,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    fetchMatches();
+    _loadToken();
     _loadInterstitialAd();
+    fetchMatches();
+  }
+
+  // Carrega o token do SharedPreferences
+  void _loadToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      token = prefs.getString('user_token') ?? ''; // Carrega o token armazenado
+    });
   }
 
   // Carrega o anúncio
@@ -180,7 +190,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => MatchDetailView(match: matches[index]), //vai para a tela de starts, essa tela de matchDetail é para teste
+                              builder: (context) => MatchDetailView(match: matches[index]), //vai para a tela de stats
                             ),
                           );
                         },

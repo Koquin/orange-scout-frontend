@@ -1,73 +1,96 @@
-import 'package:orangescoutfe/view/MatchDetailScreen.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
-class StatsScreen extends StatelessWidget {
-  const StatsScreen({super.key});
+class StatsScreen extends StatefulWidget {
+  final String matchId; //para teste de match 
+
+  const StatsScreen({Key? key, required this.matchId}) : super(key: key);
+
+  @override
+  _StatsScreenState createState() => _StatsScreenState();
+}
+
+class _StatsScreenState extends State<StatsScreen> {
+  List<dynamic> stats = [];
+  bool isLoading = true;
+  bool hasError = false;
+  String token = 'seu_token_aqui'; // Idealmente carregado de SharedPreferences
+
+  @override
+  void initState() {
+    super.initState();
+    fetchMatchStats();
+  }
+
+  Future<void> fetchMatchStats() async {
+    setState(() {
+      isLoading = true;
+      hasError = false;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://localhost:8000/stats/${widget.matchId}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          stats = jsonDecode(response.body);
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          hasError = true;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        hasError = true;
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('ORANGE SCOUT', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.brown[900],
-        centerTitle: true,
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.black, Colors.orange, Colors.black],
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            buildGameModeButton('5 x 5'),
-            buildGameModeButton('3 x 3'),
-            buildGameModeButton('1 x 1'),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.brown[900],
-        selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.white,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.play_arrow), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.group), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: ''),
-        ],
-        onTap: (index) {
-          // Adicionar navegação entre telas
-        },
-      ),
-    );
-  }
-
-  Widget buildGameModeButton(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-      child: Container(
-        width: double.infinity,
-        height: 70,
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          border: Border.all(color: Colors.orange, width: 2),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              shadows: [Shadow(color: Colors.black, blurRadius: 5)],
-            ),
-          ),
-        ),
+      appBar: AppBar(title: const Text('Estatísticas')),
+      body: Center(
+        child: isLoading
+            ? const CircularProgressIndicator()
+            : hasError
+                ? const Text('Erro ao carregar estatísticas.')
+                : ListView(
+                    children: [
+                      DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Jogador')),
+                          DataColumn(label: Text('Pontos')),
+                          DataColumn(label: Text('Assistências')),
+                          DataColumn(label: Text('Roubos')),
+                          // Adicionar mais células?
+                        ],
+                        rows: stats.map((player) {
+                          return DataRow(cells: [
+                            DataCell(Text(player['name'])),
+                            DataCell(Text(player['points'].toString())),
+                            DataCell(Text(player['assists'].toString())),
+                            DataCell(Text(player['steals'].toString())),
+                            // Adicionar mais células?
+                          ]);
+                        }).toList(),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('SAIR'),
+                      ),
+                    ],
+                  ),
       ),
     );
   }
