@@ -115,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               colors: [
                 Color(0xFFFF4500),
                 Color(0xFF84442E),
-                Color(0xFF3A2E2E),
+                Colors.black,
               ],
               stops: [0.0, 0.2, 0.7],
             ),
@@ -148,7 +148,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: TextField(
                   controller: _emailController,
                   style: TextStyle(color: Colors.white),
-                  obscureText: true,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Color(0xFFF57C00),

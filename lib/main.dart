@@ -3,7 +3,7 @@ import 'view/mainScreen.dart';
 import 'view/historyScreen.dart';
 import 'view/gameScreen.dart';
 import 'view/registerScreen.dart';
-import 'view/loginScreen.dart'; // Importa a tela de login
+import 'view/loginScreen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.orange,
       ),
-      home: LoginScreen(), // Sempre inicia na tela de login
+      home: MainScreen(),
       routes: {
         '/main': (context) => MainScreen(),
         '/history': (context) => HistoryScreen(),

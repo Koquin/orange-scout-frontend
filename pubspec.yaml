@@ -82,6 +82,10 @@ flutter:
     - assets/images/TeamsButtonIcon.png
     - assets/images/StartGameButtonIcon.png
     - assets/images/HistoryButtonIcon.png
+    - assets/images/TeamsSelectedButtonIcon.png
+    - assets/images/StartGameButtonIconSelected.png
+    - assets/images/HistoryButtonIconSelected.png
+
 fonts:
   - family: Inter
     fonts:

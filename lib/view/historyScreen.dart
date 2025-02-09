@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:orangescoutfe/view/MatchDetailScreen.dart';
+import 'package:orangescoutfe/util/verification_banner.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -50,7 +51,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://suaapi.com/match/user'),
+        Uri.parse('https://localhost:8080/match/user'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -89,7 +90,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<bool> checkPremiumStatus() async {
     try {
       final response = await http.get(
-        Uri.parse('https://suaapi.com/user/premium'),
+        Uri.parse('https://localhost:8080/user/premium'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -105,7 +106,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> fetchMatchStats(String matchId) async {
     try {
       final response = await http.get(
-        Uri.parse('https://suaapi.com/stats/$matchId'),
+        Uri.parse('https://localhost:8080/stats/$matchId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -151,19 +152,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('History', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.brown[900],
-        centerTitle: true,
-      ),
-
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.black, Colors.orange, Colors.black],
+        width: double.infinity,  // Ocupa toda a largura
+        height: double.infinity, // Ocupa toda a altura
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.0,
+            colors: [
+              Color(0xFFFF4500),
+              Color(0xFF84442E),
+              Colors.black,
+            ],
+            stops: [0.0, 0.2, 0.7],
           ),
         ),
 
@@ -191,6 +192,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
+                                VerificationBanner(),
                                 Row(
                                   children: [
                                     Image.network(matches[index]['team1Logo'], width: 60, height: 60),
@@ -222,34 +224,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     },
                   ),
-      ),
-
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.brown[900],
-        selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.white,
-        type: BottomNavigationBarType.fixed,
-        items: [
-          BottomNavigationBarItem(
-            icon: Image.asset('assets/images/TeamsButtonIcon.png', width: 50, height: 50),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset('assets/images/StartGameButtonIcon.png', width: 50, height: 50),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset('assets/images/HistoryButtonIcon.png', width: 50, height: 50),
-            label: '',
-          ),
-        ],
-
-        onTap: (index) {
-          // Adicionar navegação as telas
-        },
-
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
       ),
     );
   }
