@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:orangescoutfe/view/teams_screen.dart';
 import 'selectGameScreen.dart';
 import 'historyScreen.dart';
 import 'package:orangescoutfe/util/team_requirement_banner.dart';
@@ -33,6 +34,7 @@ class _MainScreenState extends State<MainScreen> {
   // Lista de telas para a Bottom Navigation Bar
   final List<Widget> _screens = [
     SelectGameScreen(),  // Tela de seleção do modo de jogo
+    TeamsScreen(),
     HistoryScreen(),     // Tela de histórico
   ];
 

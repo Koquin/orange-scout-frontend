@@ -10,14 +10,14 @@ class TeamRequirementBanner extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'You need at least two teams to start.',
+            'You need at least two teams to start',
             style: TextStyle(color: Colors.white),
           ),
           TextButton(
             onPressed: () {
               Navigator.pushNamed(context, '/createTeam');
             },
-            child: Text('Creat team', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text('Create team', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

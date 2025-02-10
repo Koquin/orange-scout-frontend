@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'registerScreen.dart'; // Importa a tela de registro
 
@@ -47,6 +48,11 @@ class _LoginScreenState extends State<LoginScreen> {
         final responseData = jsonDecode(response.body);
         String token = responseData['token'];
 
+        // Armazena o token no SharedPreferences
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
+
+        // Redireciona para a tela principal
         Navigator.pushReplacementNamed(context, '/main');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -114,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 40), // Reduzido para aproximar a imagem dos campos
               SizedBox(
                 height: 40, // Define a altura do campo
-                width: 650,
+                width: 500,
                 child: TextField(
                   controller: _emailController,
                   style: TextStyle(color: Colors.white),
@@ -131,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 10), // Espaço entre os campos
               SizedBox(
                 height: 40, // Define a altura do campo
-                width: 650,
+                width: 500,
                 child: TextField(
                   controller: _passwordController,
                   style: TextStyle(color: Colors.white),

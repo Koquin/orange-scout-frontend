@@ -25,14 +25,14 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.orange,
       ),
-      home: MainScreen(),
+      home: LoginScreen(),
       routes: {
         '/main': (context) => MainScreen(),
         '/history': (context) => HistoryScreen(),
         '/game': (context) => GameScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
-        '/stat': (context) => StatsScreen(),
+       // '/stat': (context) => StatsScreen(),
       },
     );
   }

@@ -31,7 +31,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://localhost:8000/stats/${widget.matchId}'),
+        Uri.parse('https://localhost:8080/stats/${widget.matchId}'),
         headers: {
           'Authorization': 'Bearer $token',
         },
@@ -59,7 +59,7 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Estatísticas')),
+      appBar: AppBar(title: const Text('Stats')),
       body: Center(
         child: isLoading
             ? const CircularProgressIndicator()

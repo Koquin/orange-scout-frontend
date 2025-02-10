@@ -89,7 +89,9 @@ flutter:
     - assets/images/TeamsSelectedButtonIcon.png
     - assets/images/StartGameButtonIconSelected.png
     - assets/images/HistoryButtonIconSelected.png
-
+    - assets/images/3x3-cutout.png
+    - assets/images/michael-cutout.png
+    - assets/images/TeamShieldIcon-cutout.png
 fonts:
   - family: Inter
     fonts:

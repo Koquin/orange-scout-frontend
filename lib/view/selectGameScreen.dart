@@ -66,18 +66,18 @@ class SelectGameScreen extends StatelessWidget {
               GestureDetector(
                 onTap: () => _handleNavigation(context, "5x5"),
                 child: Image.asset(
-                  "assets/images/west_harden-cutout.png",
-                  width: 300,
-                  height: 150,
+                  "assets/images/3x3-cutout.png",
+                  width: 400,
+                  height: 100,
                 ),
               ),
               const SizedBox(height: 10),
               GestureDetector(
                 onTap: () => _handleNavigation(context, "3x3"),
                 child: Image.asset(
-                  "assets/images/west_harden-cutout.png",
-                  width: 300,
-                  height: 150,
+                  "assets/images/michael-cutout.png",
+                  width: 400,
+                  height: 100,
                 ),
               ),
               const SizedBox(height: 10),
@@ -85,8 +85,8 @@ class SelectGameScreen extends StatelessWidget {
                 onTap: () => _handleNavigation(context, "1x1"),
                 child: Image.asset(
                   "assets/images/west_harden-cutout.png",
-                  width: 300,
-                  height: 150,
+                  width: 400,
+                  height: 100,
                 ),
               ),
             ],
