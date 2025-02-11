@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-//import 'package:orangescoutfe/util/verification_banner.dart';
 import 'package:orangescoutfe/view/statScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -179,97 +178,109 @@ class _HistoryScreenState extends State<HistoryScreen> {
     print("🟡 build chamado");
     return Scaffold(
 
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
+      appBar: AppBar(
+        title: Text(
+            'Histórico de Partidas',
+            style: TextStyle(
+              fontSize: 20
+            ),
+          ),
+          backgroundColor: Color.fromARGB(255, 156, 62, 30),
+        ),
+
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.0,
+          gradient: LinearGradient(
             colors: [
-              Color(0xFFFF4500),
-              Color(0xFF84442E),
-              Colors.black,
+              const Color.fromARGB(255, 231, 148, 23),
+              const Color.fromARGB(255, 202, 66, 56),
+              const Color.fromARGB(255, 53, 33, 33),
             ],
-            stops: [0.0, 0.2, 0.7],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
 
-        child: isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : hasError
-            ? const Center(child: Text('Erro ao carregar partidas', style: TextStyle(color: Colors.red)))
-            : ListView.builder(
-          itemCount: matches.length,
-          itemBuilder: (context, index) {
-                return Card(
-                  color: Colors.black54,
-                  margin: const EdgeInsets.symmetric(
-                      vertical: 8.0, horizontal: 16.0),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12.0, horizontal: 16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Ícone de Estatísticas
-                        IconButton(
-                          icon: Image.asset(
-                            'assets/images/StatisticsIcon.png',
-                            width: 30,
-                            height: 30,
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : hasError
+              ? const Center(child: Text('Erro ao carregar partidas', style: TextStyle(color: Colors.red)))
+              : ListView.builder(
+            itemCount: matches.length,
+            itemBuilder: (context, index) {
+                  
+                  return Card(
+                    color: Colors.black54,
+                    margin: const EdgeInsets.symmetric(
+                        vertical: 8.0, horizontal: 16.0),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12.0, horizontal: 16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                        
+                          IconButton(
+                            icon: Image.asset(
+                              'assets/images/StatisticsIcon.png',
+                              width: 50,
+                              height: 50,
+                            ),
+
+                            onPressed: () {
+                              print("🟢 Partida ${matches[index]['id']} selecionada");
+                              
+                              final matchId = matches[index]['id'];
+                              if (matchId != null) {
+                                _navigateToStats(matchId);
+                              } else {
+                                print("⚠️ Erro: ID da partida é null");
+                              }
+                            },
+
+                          ),
+                          
+                          //Time 1
+                          Row(
+                            children: [
+                                    Image.asset(
+                                        'assets/images/TeamShieldIcon-cutout.png',
+                                        width: 60,
+                                        height: 60),
+                                    const SizedBox(width: 10),
+                            ],
+                          ),
+                        
+                          Column(
+                            children: [
+                              Text(matches[index]['date'],
+                                  style: const TextStyle(
+                                      color: Colors.grey, fontSize: 16)),
+                              Text(matches[index]['score'],
+                                  style: const TextStyle(
+                                      color: Colors.orange, fontSize: 20)),
+                            ],
                           ),
 
-                          onPressed: () {
-                            print("🟢 Partida ${matches[index]['id']} selecionada");
-                            
-                            final matchId = matches[index]['id'];
-                            if (matchId != null) {
-                              _navigateToStats(matchId);
-                            } else {
-                              print("⚠️ Erro: ID da partida é null");
-                            }
-                          },
-
-                        ),
-                        // Escudo e Abreviação do Time 1
-                        Row(
-                          children: [
-                                  Image.asset(
-                                      'assets/images/TeamShieldIcon-cutout.png',
-                                      width: 60,
-                                      height: 60),
-                                  const SizedBox(width: 10),
-                          ],
-                        ),
-                        // Data e Placar
-                        Column(
-                          children: [
-                            Text(matches[index]['date'],
-                                style: const TextStyle(
-                                    color: Colors.grey, fontSize: 12)),
-                            Text(matches[index]['score'],
-                                style: const TextStyle(
-                                    color: Colors.orange, fontSize: 18)),
-                          ],
-                        ),
-                        // Escudo e Abreviação do Time 2
-                        Row(
-                          children: [
-                                  Image.asset(
-                                      'assets/images/TeamShieldIcon-cutout.png',
-                                      width: 60,
-                                      height: 60),
-                                  const SizedBox(width: 10),
-                          ],
-                        ),
-                      ],
+                          //Time 2
+                          Row(
+                            children: [
+                                    Image.asset(
+                                        'assets/images/TeamShieldIcon-cutout.png',
+                                        width: 60,
+                                        height: 60),
+                                    const SizedBox(width: 10),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-          },
+                  );
+            },
+          ),
         ),
-      ),
     );
   }
 }
