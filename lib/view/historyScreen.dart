@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:orangescoutfe/view/MatchDetailScreen.dart';
-import 'package:orangescoutfe/util/verification_banner.dart';
+//import 'package:orangescoutfe/util/verification_banner.dart';
 import 'package:orangescoutfe/view/statScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

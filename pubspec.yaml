@@ -92,6 +92,7 @@ flutter:
     - assets/images/3x3-cutout.png
     - assets/images/michael-cutout.png
     - assets/images/TeamShieldIcon-cutout.png
+    - assets/images/StatisticsIcon.png
 fonts:
   - family: Inter
     fonts:
