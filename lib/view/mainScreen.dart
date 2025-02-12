@@ -10,38 +10,19 @@ class MainScreen extends StatefulWidget {
   @override
   _MainScreenState createState() => _MainScreenState();
 }
-
 class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0; // Controla a tela ativa
-  bool _isValidated = true; // Estado inicial assume que o usuário está validado
-  bool _hasEnoughTeams = true; // Estado inicial assume que o usuário tem times suficientes
+  Widget _activeScreen = SelectGameScreen(onNavigate: (Widget screen) {});
 
   @override
   void initState() {
     super.initState();
-    _checkUserStatus();
-  }
-
-  Future<void> _checkUserStatus() async {
-    bool validated = await checkUserValidation();
-    bool hasTeams = await checkUserTeams();
-    setState(() {
-      _isValidated = validated;
-      _hasEnoughTeams = hasTeams;
-    });
-  }
-
-  // Lista de telas para a Bottom Navigation Bar
-  final List<Widget> _screens = [
-    SelectGameScreen(),  // Tela de seleção do modo de jogo
-    TeamsScreen(),
-    HistoryScreen(),     // Tela de histórico
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index; // Atualiza a tela ativa
-    });
+    _activeScreen = SelectGameScreen(
+      onNavigate: (Widget screen) {
+        setState(() {
+          _activeScreen = screen;
+        });
+      },
+    );
   }
 
   @override
@@ -49,54 +30,28 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text("Orange Scout", style: TextStyle(color: Colors.white)),
-        backgroundColor: Color(0xFF3b2f2f),
+        title: const Text("Orange Scout", style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF3b2f2f),
       ),
-      body: Column(
-        children: [
-          if (!_isValidated) VerificationBanner(),
-          if (!_hasEnoughTeams) TeamRequirementBanner(),
-          Expanded(child: _screens[_selectedIndex]), // Exibe a tela selecionada
-        ],
-      ),
+      body: _activeScreen, // Agora a tela é dinâmica
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Color(0xFF3c3030),
+        backgroundColor: const Color(0xFF3c3030),
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.white,
         type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped, // Muda a tela ao clicar
         showSelectedLabels: false,
         showUnselectedLabels: false,
         items: [
           BottomNavigationBarItem(
-            icon: Image.asset(
-              _selectedIndex == 0
-                  ? 'assets/images/StartGameButtonIconSelected.png'
-                  : 'assets/images/StartGameButtonIcon.png',
-              width: 80,
-              height: 80,
-            ),
+            icon: Image.asset('assets/images/StartGameButtonIcon.png', width: 80, height: 80),
             label: '',
           ),
           BottomNavigationBarItem(
-            icon: Image.asset(
-              _selectedIndex == 1
-                  ? 'assets/images/TeamsSelectedButtonIcon.png'  // Ícone quando selecionado
-                  : 'assets/images/TeamsButtonIcon.png',  // Ícone padrão
-              width: 80,
-              height: 80,
-            ),
+            icon: Image.asset('assets/images/TeamsButtonIcon.png', width: 80, height: 80),
             label: '',
           ),
           BottomNavigationBarItem(
-            icon: Image.asset(
-              _selectedIndex == 2
-                  ? 'assets/images/HistoryButtonIconSelected.png'
-                  : 'assets/images/HistoryButtonIcon.png',
-              width: 80,
-              height: 80,
-            ),
+            icon: Image.asset('assets/images/HistoryButtonIcon.png', width: 80, height: 80),
             label: '',
           ),
         ],

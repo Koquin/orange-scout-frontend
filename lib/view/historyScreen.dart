@@ -51,7 +51,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final response = await http.get(
         Uri.parse('http://localhost:8080/match/user'),
         headers: {
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3MzkxOTQ4MzgsImV4cCI6MTczOTIzMDgzOH0.DDXqnGuTmCl427QebgH_Jfn0VivF_PWL8Up_p7KLZyQ',
+          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );

@@ -1,23 +1,54 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+
+Future<String?> _loadToken() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  return prefs.getString('auth_token');
+}
 
 Future<bool> checkUserValidation() async {
-  final response = await http.get(Uri.parse('http://localhost:8080/user/validated'));
-
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    return data['validated']; // Assume que o JSON retorna {"validated": true}
+  String? token = await _loadToken();
+  if (token == null) {
+    return false;
   }
-  return false; // Se der erro, assume que não está validado
-}
+    final response = await http.get(
+      Uri.parse('http://localhost:8080/auth/isValidated'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return true;
+    }
+    return false;
+  }
 
 Future<bool> checkUserTeams() async {
-  final response = await http.get(Uri.parse('http://localhost:8080/match/validate-start'));
+  String? token = await _loadToken();
+  if (token == null || token.isEmpty) {
+    print("🚨 Token not found");
+    return false;
+  }
+
+  final response = await http.get(
+    Uri.parse('http://localhost:8080/match/validate-start'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+  );
+
+  print("🔹 Resposta do servidor: ${response.statusCode}");
+  print("🔹 Corpo da resposta: ${response.body}");
 
   if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    return data['teamCount'] >= 2; // Assume que o JSON retorna {"teamCount": 2}
+    return true;
+  } else {
+    return false;
   }
-  return false;
 }
-
