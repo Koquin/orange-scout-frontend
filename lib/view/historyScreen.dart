@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:orangescoutfe/view/MatchDetailScreen.dart';
-import 'package:orangescoutfe/util/verification_banner.dart';
+import 'package:orangescoutfe/view/statScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -12,10 +11,9 @@ class HistoryScreen extends StatefulWidget {
   @override
   _HistoryScreenState createState() => _HistoryScreenState();
 }
-
 class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> matches = [];
-  String token = '';
+  String token = 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3MzkyMjM0MTUsImV4cCI6MTczOTI1OTQxNX0.E_MEgoI3iL2dKWQLhS20kTWfY6Ue-F1Jii0E9A8G9Ww';
   InterstitialAd? _interstitialAd;
   bool isLoading = true;
   bool hasError = false;
@@ -49,7 +47,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     try {
       print('🔵 Fazendo requisição para /match/user');
       final response = await http.get(
-        Uri.parse('http://localhost:8080/match/user'),
+        Uri.parse('http://192.168.1.16:8080/match/user'),//coloca de volta para localhost:8080
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -64,7 +62,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         print('🟢 Requisição bem-sucedida, processando dados...');
         List<dynamic> data = jsonDecode(response.body);
         setState(() {
+          
           matches = data.map((match) => {
+            'id': match['id'],
             'team1': match['teamOne']['abbreviation'],
             'team2': match['teamTwo']['abbreviation'],
             'score': '${match['teamOneScore']} x ${match['teamTwoScore']}',
@@ -76,6 +76,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           print(matches);
           isLoading = false;
         });
+        
       } else {
         print('🔴 Erro na requisição: Status Code ${response.statusCode}');
         setState(() {
@@ -92,11 +93,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Future<bool> checkPremiumStatus() async {
+  Future<bool> checkPremiumStatus() async { //faz a verificação se o usuário é premium
     print("🟡 checkPremiumStatus chamado");
     try {
       final response = await http.get(
-        Uri.parse('https://localhost:8080/user/premium'),
+        Uri.parse('https://192.168.1.16:8080/user/premium'),//coloca de volta para localhost:8080
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -114,7 +115,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     print("🟡 fetchMatchStats chamado para partida $matchId");
     try {
       final response = await http.get(
-        Uri.parse('https://localhost:8080/stats/$matchId'),
+        Uri.parse('https://192.168.1.16:8080/stats/$matchId'),//coloca de volta para localhost:8080
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -133,7 +134,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  void _showAdOrStats(String matchId) async {
+  void _showAdOrStats(String matchId) async { //configuração de anuncio
     print("🟡 _showAdOrStats chamado para partida $matchId");
     bool isPremium = await checkPremiumStatus();
     print("🔵 Usuário premium: $isPremium");
@@ -163,80 +164,123 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  void _navigateToStats(String matchId) { //chama a página statsScreen e passa o id da match
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StatsScreen(matchId: matchId),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     print("🟡 build chamado");
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
+
+      appBar: AppBar(
+        title: Text(
+            'Histórico de Partidas',
+            style: TextStyle(
+              fontSize: 20
+            ),
+          ),
+          backgroundColor: Color.fromARGB(255, 156, 62, 30),
+        ),
+
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.0,
+          gradient: LinearGradient(
             colors: [
-              Color(0xFFFF4500),
-              Color(0xFF84442E),
-              Colors.black,
+              const Color.fromARGB(255, 231, 148, 23),
+              const Color.fromARGB(255, 202, 66, 56),
+              const Color.fromARGB(255, 53, 33, 33),
             ],
-            stops: [0.0, 0.2, 0.7],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
-        child: isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : hasError
-            ? const Center(child: Text('Erro ao carregar partidas', style: TextStyle(color: Colors.red)))
-            : ListView.builder(
-          itemCount: matches.length,
-          itemBuilder: (context, index) {
-            return GestureDetector(
-              onTap: () {
-                print("🟢 Partida ${matches[index]['id']} selecionada");
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => MatchDetailView(match: matches[index]),
-                  ),
-                );
-              },
-              child: Card(
-                color: Colors.black54,
-                margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.stars, color: Colors.orange),
-                        onPressed: () => _showAdOrStats(matches[index]['id']),
-                      ),
-                      Row(
+
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : hasError
+              ? const Center(child: Text('Erro ao carregar partidas', style: TextStyle(color: Colors.red)))
+              : ListView.builder(
+            itemCount: matches.length,
+            itemBuilder: (context, index) {
+                  
+                  return Card(
+                    color: Colors.black54,
+                    margin: const EdgeInsets.symmetric(
+                        vertical: 8.0, horizontal: 16.0),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12.0, horizontal: 16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Image.asset('assets/images/TeamShieldIcon-cutout.png', width: 60, height: 60),
-                          const SizedBox(width: 10),
+                        
+                          IconButton(
+                            icon: Image.asset(
+                              'assets/images/StatisticsIcon.png',
+                              width: 50,
+                              height: 50,
+                            ),
+
+                            onPressed: () {
+                              print("🟢 Partida ${matches[index]['id']} selecionada");
+                              
+                              final matchId = matches[index]['id'];
+                              if (matchId != null) {
+                                _navigateToStats(matchId);
+                              } else {
+                                print("⚠️ Erro: ID da partida é null");
+                              }
+                            },
+
+                          ),
+                          
+                          //Time 1
+                          Row(
+                            children: [
+                                    Image.asset(
+                                        'assets/images/TeamShieldIcon-cutout.png',
+                                        width: 60,
+                                        height: 60),
+                                    const SizedBox(width: 10),
+                            ],
+                          ),
+                        
+                          Column(
+                            children: [
+                              Text(matches[index]['date'],
+                                  style: const TextStyle(
+                                      color: Colors.grey, fontSize: 16)),
+                              Text(matches[index]['score'],
+                                  style: const TextStyle(
+                                      color: Colors.orange, fontSize: 20)),
+                            ],
+                          ),
+
+                          //Time 2
+                          Row(
+                            children: [
+                                    Image.asset(
+                                        'assets/images/TeamShieldIcon-cutout.png',
+                                        width: 60,
+                                        height: 60),
+                                    const SizedBox(width: 10),
+                            ],
+                          ),
                         ],
                       ),
-                      Column(
-                        children: [
-                          Text(matches[index]['date'], style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                          Text(matches[index]['score'], style: const TextStyle(color: Colors.orange, fontSize: 18)),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Image.asset('assets/images/TeamShieldIcon-cutout.png', width: 60, height: 60),
-                          const SizedBox(width: 10),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+                    ),
+                  );
+            },
+          ),
         ),
-      ),
     );
   }
 }
