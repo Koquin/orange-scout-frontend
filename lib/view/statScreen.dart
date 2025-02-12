@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:orangescoutfe/view/mapScreen.dart';
+
 class StatsScreen extends StatefulWidget {
-  final String matchId;
+  final String matchId; //id da match
 
   const StatsScreen({Key? key, required this.matchId}) : super(key: key);
 
@@ -13,10 +15,13 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   List<dynamic> stats = [];
-  bool isLoading = true;
-  Map<String, List<dynamic>> teamsStats = {};
-  String? selectedTeamFilter;
+  bool isLoading = true; //variavel para controle de carregamento da página
+  Map<String, List<dynamic>> teamsStats = {}; //variavel dos times
+  String? selectedTeamFilter; //variavel de seleção do filtro
   List<String> availableTeams = [];
+
+  double latitude = 0.0; //variavel de latitude
+  double longitude = 0.0; //variavel de longitude
 
   @override
   void initState() {
@@ -25,15 +30,14 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> fetchStats() async {
-    final response = await http.get(Uri.parse('http://localhost:8080/stats/${widget.matchId}'));
-
-    //api teste = final response = await http.get(Uri.parse('http://localhost:8081/stats/${widget.matchId}'));
+    final response = await http
+        .get(Uri.parse('http://192.168.1.16:8081/stats/${widget.matchId}'));//coloca de volta para localhost:8080
 
     if (response.statusCode == 200) {
       var jsonData = jsonDecode(response.body);
       var statsList = jsonData['stats'];
+      var location = jsonData['location']; // Pegando a localização corretamente
 
-      // Organizar as estatísticas por time
       Map<String, List<dynamic>> teamStats = {};
       for (var stat in statsList) {
         String team = stat['team'];
@@ -43,17 +47,21 @@ class _StatsScreenState extends State<StatsScreen> {
         teamStats[team]?.add(stat);
       }
 
-      // Atualizar o estado
       setState(() {
         stats = statsList;
         teamsStats = teamStats;
         availableTeams = teamStats.keys.toList();
-        isLoading = false; // Isso vai parar o carregamento
+        isLoading = false;
+
+        // Armazenando latitude e longitude corretamente
+        latitude = location['latitude'] ?? 0.0;
+        longitude = location['longitude'] ?? 0.0;
       });
     } else {
       throw Exception('Falha ao carregar as estatísticas');
     }
   }
+
 
   void applyFilter(String filter) {
     setState(() {
@@ -99,7 +107,7 @@ class _StatsScreenState extends State<StatsScreen> {
           : Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
+                  colors: [ //configura o degradê na vertical
                     const Color.fromARGB(255, 231, 148, 23),
                     const Color.fromARGB(255, 202, 66, 56),
                     const Color.fromARGB(255, 53, 33, 33),
@@ -112,7 +120,7 @@ class _StatsScreenState extends State<StatsScreen> {
               child: ListView(
                 children: filteredStats.keys.map((team) {
                   var players = filteredStats[team];
-                  if (players != null && players.isNotEmpty) {
+                  if (players != null && players.isNotEmpty) { //faz um if para mostrar os times de acordo com o filtro
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,8 +147,8 @@ class _StatsScreenState extends State<StatsScreen> {
                             ],
                           ),
 
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
+                          child: SingleChildScrollView( //aqui o cabeçalho tem que ficar de acordo com a ordem das estisticas e nome reais
+                            scrollDirection: Axis.horizontal, //configura um scroll para a tabela
                             child: DataTable(
                               columns: const [
                                 DataColumn(label: Text('Jogador')),
@@ -196,11 +204,32 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
             ),
 
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pop(context),
-        child: Icon(Icons.history, color: Colors.black, size: 40),
-        backgroundColor: Color.fromARGB(255, 202, 66, 56),
-      ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              if (latitude != 0.0 && longitude != 0.0) { //verifica os valores de latitude e longitude
+                Navigator.push(
+                  context,
+                  MaterialPageRoute( //chama a tela de mapa
+                    builder: (context) => MapScreen(
+                      latitude: latitude,
+                      longitude: longitude,
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Localização não disponível')),
+                );
+              }
+            },
+
+            backgroundColor: Color.fromARGB(255, 202, 66, 56),
+            child: Image.asset(
+              'assets/images/localizacao.png',
+              width: 40,
+              height: 40,
+            ),
+          )
     );
   }
 }

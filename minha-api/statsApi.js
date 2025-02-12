@@ -66,7 +66,13 @@ app.get("/stats/:matchId", (req, res) => {
         }
     ];
 
-    res.json({ matchId, stats });
+    // Simulação de localização da partida
+    const location = {
+        latitude: -23.550520,  // Latitude fictícia
+        longitude: -46.633308  // Longitude fictícia
+    };
+
+    res.json({ matchId, stats, location });
 });
 
 app.listen(8081, () => {

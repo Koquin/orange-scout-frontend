@@ -13,7 +13,7 @@ class HistoryScreen extends StatefulWidget {
 }
 class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> matches = [];
-  String token = '';
+  String token = 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3MzkyMjM0MTUsImV4cCI6MTczOTI1OTQxNX0.E_MEgoI3iL2dKWQLhS20kTWfY6Ue-F1Jii0E9A8G9Ww';
   InterstitialAd? _interstitialAd;
   bool isLoading = true;
   bool hasError = false;
@@ -47,9 +47,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     try {
       print('🔵 Fazendo requisição para /match/user');
       final response = await http.get(
-        Uri.parse('http://localhost:8080/match/user'),
+        Uri.parse('http://192.168.1.16:8080/match/user'),//coloca de volta para localhost:8080
         headers: {
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3MzkxOTQ4MzgsImV4cCI6MTczOTIzMDgzOH0.DDXqnGuTmCl427QebgH_Jfn0VivF_PWL8Up_p7KLZyQ',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3MzkyMjM0MTUsImV4cCI6MTczOTI1OTQxNX0.E_MEgoI3iL2dKWQLhS20kTWfY6Ue-F1Jii0E9A8G9Ww',
           'Content-Type': 'application/json',
         },
       );
@@ -93,11 +93,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Future<bool> checkPremiumStatus() async {
+  Future<bool> checkPremiumStatus() async { //faz a verificação se o usuário é premium
     print("🟡 checkPremiumStatus chamado");
     try {
       final response = await http.get(
-        Uri.parse('https://localhost:8080/user/premium'),
+        Uri.parse('https://192.168.1.16:8080/user/premium'),//coloca de volta para localhost:8080
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     print("🟡 fetchMatchStats chamado para partida $matchId");
     try {
       final response = await http.get(
-        Uri.parse('https://localhost:8080/stats/$matchId'),
+        Uri.parse('https://192.168.1.16:8080/stats/$matchId'),//coloca de volta para localhost:8080
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  void _showAdOrStats(String matchId) async {
+  void _showAdOrStats(String matchId) async { //configuração de anuncio
     print("🟡 _showAdOrStats chamado para partida $matchId");
     bool isPremium = await checkPremiumStatus();
     print("🔵 Usuário premium: $isPremium");
