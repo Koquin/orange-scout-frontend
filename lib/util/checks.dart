@@ -1,7 +1,6 @@
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
+import 'dart:convert';
 
 Future<String?> _loadToken() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -9,46 +8,64 @@ Future<String?> _loadToken() async {
 }
 
 Future<bool> checkUserValidation() async {
-  String? token = await _loadToken();
-  if (token == null) {
-    return false;
-  }
+  try {
     final response = await http.get(
       Uri.parse('http://localhost:8080/auth/isValidated'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return true;
+      if (response.body.trim().toLowerCase() == 'true'){
+        return true;
+      }
+      else {
+        return false;
+      }
+    } else {
+      return false;
     }
+  } catch (e) {
+    print("Requisition error: $e");
     return false;
   }
+}
+
+
+
 
 Future<bool> checkUserTeams() async {
-  String? token = await _loadToken();
-  if (token == null || token.isEmpty) {
-    print("🚨 Token not found");
+  try {
+    final response = await http.get(
+      Uri.parse('http://localhost:8080/match/validate-start'),
+    );
+
+    if (response.statusCode == 200) {
+      return response.body.trim().toLowerCase() == 'true';
+    } else {
+      return false;
+    }
+  } catch (e) {
+    print("Requisition error: $e");
     return false;
   }
+}
 
-  final response = await http.get(
-    Uri.parse('http://localhost:8080/match/validate-start'),
-    headers: {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    },
-  );
+Future<bool> validateToken(String? token) async {
+  if (token == null || token.isEmpty) return false;
 
-  print("🔹 Resposta do servidor: ${response.statusCode}");
-  print("🔹 Corpo da resposta: ${response.body}");
+  try {
+    final response = await http.post(
+      Uri.parse('http://localhost:8080/auth/isTokenValid'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token}),
+    );
 
-  if (response.statusCode == 200) {
-    return true;
-  } else {
+    if (response.statusCode == 200) {
+      return response.body.trim().toLowerCase() == 'true';
+    } else {
+      return false;
+    }
+  } catch (e) {
+    print("Requisition error: $e");
     return false;
   }
 }

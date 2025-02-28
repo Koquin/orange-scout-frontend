@@ -39,8 +39,10 @@ dependencies:
   google_mobile_ads: ^5.3.1 # para por os anúncios
   geolocator: ^13.0.2 # para a geolocalizacao
   geocoding: ^3.0.0 # para a geolocalizacao
-
+  google_maps_flutter: ^2.5.0
   shared_preferences: ^2.5.1 #para o token
+  url_launcher: ^6.2.2
+
 
 dev_dependencies:
   flutter_test:
@@ -76,8 +78,8 @@ flutter:
     - assets/images/SubstitutionActionIcon.png
     - assets/images/Ball.png
     - assets/images/basketball.png
-    - assets/images/west_harden-cutout.png
-    - assets/images/OrangeScoutLogo-cutout.png
+    - assets/images/west_harden.png
+    - assets/images/OrangeScoutLogo.png
     - assets/images/OrangeScoutMain.png
     - assets/images/pngwing.com.png
     - assets/images/TeamsButtonIcon.png
@@ -86,11 +88,11 @@ flutter:
     - assets/images/TeamsSelectedButtonIcon.png
     - assets/images/StartGameButtonIconSelected.png
     - assets/images/HistoryButtonIconSelected.png
-    - assets/images/3x3-cutout.png
-    - assets/images/5x5-cutout-cutout.png
+    - assets/images/3x3.png
+    - assets/images/5x5.png
     - assets/images/TeamShieldIcon-cutout.png
     - assets/images/arrow.png
-    - assets/images/arrow_left-cutout.png
+    - assets/images/arrow_left.png
     - assets/images/StatisticsIcon.png
 fonts:
   - family: Inter

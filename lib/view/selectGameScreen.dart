@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'selectTeamsNStarters.dart'; // Próxima tela
-import 'package:orangescoutfe/util/verification_banner.dart';
-import 'package:orangescoutfe/util/team_requirement_banner.dart';
+import 'package:orangescoutfe/util/persistent_snackBar.dart';
 import 'package:orangescoutfe/util/checks.dart';
 
 class SelectGameScreen extends StatefulWidget {
@@ -19,30 +18,26 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
     bool hasEnoughTeams = await checkUserTeams();
 
     if (!isValidated) {
-      _showBanner(VerificationBanner());
+      PersistentSnackbar.show(
+        context: context,
+        message: "You need to validate your email",
+        actionTitle: "Validation Screen",
+        navigation: "/validationScreen",
+      );
     } else if (!hasEnoughTeams) {
-      _showBanner(TeamRequirementBanner());
+      PersistentSnackbar.show(
+        context: context,
+        message: "You need at least two teams to start",
+        actionTitle: "Create team",
+        navigation: "/createTeam",
+      );
     } else {
-      // Agora, a navegação acontece dentro do MainScreen
       widget.onNavigate(SelectTeamsNStarters(
         gameMode: gameMode,
         onBack: () => widget.onNavigate(SelectGameScreen(onNavigate: widget.onNavigate)),
       ));
     }
   }
-
-  void _showBanner(Widget banner) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: banner,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -67,27 +62,27 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
             GestureDetector(
               onTap: () => _handleNavigation("5x5"),
               child: Image.asset(
-                "assets/images/5x5-cutout-cutout.png",
+                "assets/images/5x5.png",
                 width: 400,
-                height: 100,
+                height: 150,
               ),
             ),
             const SizedBox(height: 10),
             GestureDetector(
               onTap: () => _handleNavigation("3x3"),
               child: Image.asset(
-                "assets/images/3x3-cutout.png",
+                "assets/images/3x3.png",
                 width: 400,
-                height: 100,
+                height: 150,
               ),
             ),
             const SizedBox(height: 10),
             GestureDetector(
               onTap: () => _handleNavigation("1x1"),
               child: Image.asset(
-                "assets/images/west_harden-cutout.png",
+                "assets/images/west_harden.png",
                 width: 400,
-                height: 100,
+                height: 150,
               ),
             ),
           ],

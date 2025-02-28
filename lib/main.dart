@@ -1,21 +1,41 @@
 import 'package:flutter/material.dart';
-import 'package:orangescoutfe/view/statScreen.dart';
 import 'view/mainScreen.dart';
 import 'view/historyScreen.dart';
-import 'view/gameScreen.dart';
 import 'view/registerScreen.dart';
 import 'view/loginScreen.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; //anuncio
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Anúncio
+import 'view/verificationScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:orangescoutfe/util/checks.dart';
+import 'view/gameScreen.dart';
+import 'controller/match_controller.dart';
 
-void main() {
+Future<String?> _loadToken() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  return prefs.getString('auth_token');
+}
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize(); //Inicializa o SDK do AdMob - Anuncio
+  MobileAds.instance.initialize(); // Inicializa o AdMob
 
-  runApp(const MyApp());
+  String? token = await _loadToken(); // Espera carregar o token
+  bool validToken = await validateToken(token); // Espera validar o token
+  Map<String, dynamic>? lastMatch;
+  if (token != null) {
+    lastMatch = await checkLastMatch(token);
+  } else {
+    lastMatch = null;
+  }
+
+  runApp(MyApp(validToken: validToken, lastMatch: lastMatch ?? {}));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool validToken;
+  final Map<String, dynamic>? lastMatch;
+
+  const MyApp({super.key, required this.validToken, required this.lastMatch});
 
   @override
   Widget build(BuildContext context) {
@@ -25,15 +45,68 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.orange,
       ),
-      home: LoginScreen(),
+      home: validToken
+          ? (lastMatch != null
+          ? LastMatchDialog(lastMatch: lastMatch!) // Usa '!' para garantir que não é nulo
+          : MainScreen())
+          : LoginScreen(),
       routes: {
         '/main': (context) => MainScreen(),
         '/history': (context) => HistoryScreen(),
-        '/game': (context) => GameScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
-       // '/stat': (context) => StatsScreen(),
+        '/validationScreen': (context) => VerificationScreen(),
       },
+    );
+  }
+}
+
+class LastMatchDialog extends StatelessWidget {
+  final Map<String, dynamic> lastMatch;
+
+  const LastMatchDialog({super.key, required this.lastMatch});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black54,
+      body: AlertDialog(
+        title: Text("You have an unfinished match"),
+        content: Text("You want to continue it?"),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              String? token = await _loadToken();
+              if (token != null) {
+                await finishMatch(lastMatch["id"], token);
+              }
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => MainScreen()),
+              );
+            },
+            child: Text("No"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => GameScreen(
+                    team1: lastMatch["team1"],
+                    team2: lastMatch["team2"],
+                    startersTeam1: lastMatch["startersTeam1"],
+                    startersTeam2: lastMatch["startersTeam2"],
+                    gameMode: lastMatch["gameMode"],
+                    playerStats: lastMatch["playerStats"],
+                  ),
+                ),
+              );
+            },
+            child: Text("Yes"),
+          ),
+        ],
+      ),
     );
   }
 }

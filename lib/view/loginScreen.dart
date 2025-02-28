@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'registerScreen.dart'; // Importa a tela de registro
 
 class LoginScreen extends StatefulWidget {
@@ -46,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        String token = responseData['token'];
+        String token = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3NDAwMDEwMjgsImV4cCI6MTc0MDAzNzAyOH0.o1F__-QOiexAqeAYSY8U4VLqwRUo8JshnYS_eB8FXQg";
 
         // Armazena o token no SharedPreferences
         SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -116,10 +115,10 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/OrangeScoutLogo-cutout.png'),
-              SizedBox(height: 40), // Reduzido para aproximar a imagem dos campos
+              Image.asset('assets/images/OrangeScoutLogo.png'),
+              SizedBox(height: 40),
               SizedBox(
-                height: 40, // Define a altura do campo
+                height: 40,
                 width: 500,
                 child: TextField(
                   controller: _emailController,
@@ -134,9 +133,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              SizedBox(height: 10), // Espaço entre os campos
+              SizedBox(height: 10),
               SizedBox(
-                height: 40, // Define a altura do campo
+                height: 40,
                 width: 500,
                 child: TextField(
                   controller: _passwordController,

@@ -123,7 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/OrangeScoutLogo-cutout.png'),
+              Image.asset('assets/images/OrangeScoutLogo-cutout-cutout.png'),
               SizedBox(height: 40),
               SizedBox(
                 height: 40, // Define a altura do campo

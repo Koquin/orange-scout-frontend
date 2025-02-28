@@ -2,27 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:orangescoutfe/view/teams_screen.dart';
 import 'selectGameScreen.dart';
 import 'historyScreen.dart';
-import 'package:orangescoutfe/util/team_requirement_banner.dart';
-import 'package:orangescoutfe/util/verification_banner.dart';
-import 'package:orangescoutfe/util/checks.dart';
 
 class MainScreen extends StatefulWidget {
   @override
   _MainScreenState createState() => _MainScreenState();
 }
-class _MainScreenState extends State<MainScreen> {
-  Widget _activeScreen = SelectGameScreen(onNavigate: (Widget screen) {});
 
-  @override
-  void initState() {
-    super.initState();
-    _activeScreen = SelectGameScreen(
-      onNavigate: (Widget screen) {
-        setState(() {
-          _activeScreen = screen;
-        });
-      },
-    );
+class _MainScreenState extends State<MainScreen> {
+  int _selectedIndex = 0; // Índice da tela ativa
+
+  // Método para mudar de tela ao tocar no BottomNavigationBar
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override
@@ -33,7 +26,17 @@ class _MainScreenState extends State<MainScreen> {
         title: const Text("Orange Scout", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF3b2f2f),
       ),
-      body: _activeScreen, // Agora a tela é dinâmica
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          SelectGameScreen(onNavigate: (Widget page) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+          }),
+
+          TeamsScreen(),
+          HistoryScreen(),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF3c3030),
         selectedItemColor: Colors.orange,
@@ -41,6 +44,8 @@ class _MainScreenState extends State<MainScreen> {
         type: BottomNavigationBarType.fixed,
         showSelectedLabels: false,
         showUnselectedLabels: false,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
         items: [
           BottomNavigationBarItem(
             icon: Image.asset('assets/images/StartGameButtonIcon.png', width: 80, height: 80),

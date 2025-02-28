@@ -203,33 +203,6 @@ class _StatsScreenState extends State<StatsScreen> {
                 }).toList(),
               ),
             ),
-
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              if (latitude != 0.0 && longitude != 0.0) { //verifica os valores de latitude e longitude
-                Navigator.push(
-                  context,
-                  MaterialPageRoute( //chama a tela de mapa
-                    builder: (context) => MapScreen(
-                      latitude: latitude,
-                      longitude: longitude,
-                    ),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Localização não disponível')),
-                );
-              }
-            },
-
-            backgroundColor: Color.fromARGB(255, 202, 66, 56),
-            child: Image.asset(
-              'assets/images/localizacao.png',
-              width: 40,
-              height: 40,
-            ),
-          )
     );
   }
 }

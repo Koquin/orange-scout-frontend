@@ -6,6 +6,12 @@
         android:label="orangescoutfe"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <queries>
+            <intent>
+                <action android:name="android.intent.action.VIEW"/>
+                <data android:scheme="https"/>
+            </intent>
+        </queries>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -30,21 +36,14 @@
             android:value="2" />
 
         <!-- ID do app no AdMob(Anuncio) -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-6483916339248630~1318304769"/>
-
+        <meta-data/>
     </application>
 
     <!-- Required to query activities that can process text -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
-        </intent>
-    </queries>
 
     <!-- geolocalização -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+
 </manifest>
