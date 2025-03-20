@@ -11,7 +11,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Future<void> validateCode() async {
     final response = await http.post(
-      Uri.parse('http://localhost:8080/user/validate'),
+      Uri.parse('http://192.168.18.31:8080/user/validate'),
       body: {'code': _codeController.text},
     );
 
@@ -27,7 +27,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> sendVerificationCode() async {
-    await http.post(Uri.parse('http://localhost:8080/user/sendValidationCode'));
+    await http.post(Uri.parse('http://192.168.18.31:8080/user/sendValidationCode'));
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Code sent!')),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:orangescoutfe/view/teams_screen.dart';
+import 'package:OrangeScoutFE/view/teams_screen.dart';
 import 'selectGameScreen.dart';
 import 'historyScreen.dart';
 

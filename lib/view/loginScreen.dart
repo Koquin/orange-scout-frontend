@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'registerScreen.dart'; // Importa a tela de registro
 
 class LoginScreen extends StatefulWidget {
@@ -15,14 +15,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  final Uri url = Uri.parse('http://192.168.18.31:8080/auth/login');
+
 
   Future<void> _login() async {
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
+
     setState(() {
       _isLoading = true;
     });
-
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -34,8 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final Uri url = Uri.parse('http://localhost:8080/auth/login');
-
     try {
       final response = await http.post(
         url,
@@ -45,13 +45,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        String token = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3NDAwMDEwMjgsImV4cCI6MTc0MDAzNzAyOH0.o1F__-QOiexAqeAYSY8U4VLqwRUo8JshnYS_eB8FXQg";
-
-        // Armazena o token no SharedPreferences
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', token);
-
-        // Redireciona para a tela principal
+        String? token = responseData['token'];
+        if (token == null || token.isEmpty) {
+          throw Exception("Token not found");
+        }
+        saveToken(token);
+        print('Token salvo no login: $token');
         Navigator.pushReplacementNamed(context, '/main');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -68,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
   }
+
 
   Widget customButton({required String text, required VoidCallback onPressed}) {
     return ElevatedButton(

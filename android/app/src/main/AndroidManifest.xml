@@ -2,29 +2,31 @@
     <!-- Coloque a tag uses-feature aqui, fora da tag application -->
     <uses-feature android:name="android.hardware.location.gps"/>
 
+    <!-- geolocalização -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+
+    <!-- Move queries element outside of application -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+    </queries>
+
     <application
-        android:label="orangescoutfe"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-        <queries>
-            <intent>
-                <action android:name="android.intent.action.VIEW"/>
-                <data android:scheme="https"/>
-            </intent>
-        </queries>
+            android:label="orangescoutfe"
+            android:icon="@mipmap/ic_launcher">
         <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:taskAffinity=""
-            android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
-            <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name=".MainActivity"
+                android:exported="true"
+                android:launchMode="singleTop"
+                android:taskAffinity=""
+                android:theme="@style/LaunchTheme"
+                android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                android:hardwareAccelerated="true"
+                android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -32,18 +34,7 @@
         </activity>
         <!-- Não delete o meta-data abaixo. -->
         <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
-
-        <!-- ID do app no AdMob(Anuncio) -->
-        <meta-data/>
+                android:name="flutterEmbedding"
+                android:value="2" />
     </application>
-
-    <!-- Required to query activities that can process text -->
-
-    <!-- geolocalização -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
-
 </manifest>

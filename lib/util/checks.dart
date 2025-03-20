@@ -1,26 +1,31 @@
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-
-Future<String?> _loadToken() async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  return prefs.getString('auth_token');
-}
+import 'package:OrangeScoutFE/util/token_utils.dart';
 
 Future<bool> checkUserValidation() async {
+  String? token = await loadToken();
+
   try {
     final response = await http.get(
-      Uri.parse('http://localhost:8080/auth/isValidated'),
+      Uri.parse('http://192.168.18.31:8080/auth/isValidated'),
+      headers: {
+        'Authorization' : 'Bearer $token',
+        'Content-Type': 'application/json',
+      }
     );
 
     if (response.statusCode == 200) {
       if (response.body.trim().toLowerCase() == 'true'){
+        print("Requisition for User Validation was successful, Response is TRUE");
         return true;
       }
       else {
+        print("Requisition User Validation was successful, Response is FALSE");
         return false;
       }
     } else {
+      print("Requisition code was other than 200");
       return false;
     }
   } catch (e) {
@@ -29,18 +34,29 @@ Future<bool> checkUserValidation() async {
   }
 }
 
-
-
-
 Future<bool> checkUserTeams() async {
+  String? token = await loadToken();
+
   try {
     final response = await http.get(
-      Uri.parse('http://localhost:8080/match/validate-start'),
+      Uri.parse('http://192.168.18.31:8080/match/validate-start'),
+      headers : {
+        'Authorization' : 'Bearer $token',
+        'Content-Type': 'application/json',
+        }
     );
 
     if (response.statusCode == 200) {
-      return response.body.trim().toLowerCase() == 'true';
+      if (response.body.trim().toLowerCase() == 'true'){
+        print("Requisition for User Teams was successful, response is TRUE");
+        return true;
+      }
+      else {
+        print("Requisition for User Teams was successful, response is FALSE");
+        return false;
+      }
     } else {
+      print("Requisition code was other than 200");
       return false;
     }
   } catch (e) {
@@ -54,8 +70,11 @@ Future<bool> validateToken(String? token) async {
 
   try {
     final response = await http.post(
-      Uri.parse('http://localhost:8080/auth/isTokenValid'),
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse('http://192.168.18.31:8080/auth/isTokenValid'),
+        headers : {
+          'Authorization' : 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
       body: jsonEncode({'token': token}),
     );
 

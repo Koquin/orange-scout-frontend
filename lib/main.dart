@@ -3,10 +3,9 @@ import 'view/mainScreen.dart';
 import 'view/historyScreen.dart';
 import 'view/registerScreen.dart';
 import 'view/loginScreen.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Anúncio
 import 'view/verificationScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:orangescoutfe/util/checks.dart';
+import 'package:OrangeScoutFE/util/checks.dart';
 import 'view/gameScreen.dart';
 import 'controller/match_controller.dart';
 
@@ -17,7 +16,6 @@ Future<String?> _loadToken() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize(); // Inicializa o AdMob
 
   String? token = await _loadToken(); // Espera carregar o token
   bool validToken = await validateToken(token); // Espera validar o token

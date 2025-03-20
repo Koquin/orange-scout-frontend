@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:orangescoutfe/util/token_utils.dart';
+import 'package:OrangeScoutFE/util/token_utils.dart';
 
 import 'mainScreen.dart';
 
@@ -42,7 +42,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   int teamOneScore = 0;
   int teamTwoScore = 0;
   Future<String?>? token = loadToken();
-  String endPointMatch = "http://localhost:8080/match";
+  String endPointMatch = "http://192.168.18.31:8080/match";
 
   @override
   void initState() {

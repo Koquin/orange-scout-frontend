@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import 'package:orangescoutfe/view/mapScreen.dart';
+import 'package:OrangeScoutFE/view/mapScreen.dart';
 
 class StatsScreen extends StatefulWidget {
   final String matchId; //id da match
@@ -31,7 +30,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Future<void> fetchStats() async {
     final response = await http
-        .get(Uri.parse('http://192.168.1.16:8081/stats/${widget.matchId}'));//coloca de volta para localhost:8080
+        .get(Uri.parse('http://192.168.18.31:8081/stats/${widget.matchId}'));//coloca de volta para localhost:8080
 
     if (response.statusCode == 200) {
       var jsonData = jsonDecode(response.body);
@@ -195,7 +194,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     return Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Text(
-                        'Nenhum jogador encontrado para $team',
+                        'No players found to $team',
                         style: TextStyle(color: Colors.white),
                       ),
                     );

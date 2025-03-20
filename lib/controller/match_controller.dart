@@ -1,7 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-const String apiUrl = "https://localhost:8080/match/"; // Substitua pelo seu endpoint real
+const String apiUrl = "http://192.168.18.31:8080/match"; // Substitua pelo seu endpoint real
 
 Future<Map<String, dynamic>?> checkLastMatch(String token) async {
   final response = await http.get(

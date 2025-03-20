@@ -35,7 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final Uri url = Uri.parse('http://localhost:8080/auth/register');
+    final Uri url = Uri.parse('http://192.168.18.31:8080/auth/register');
 
     try {
       final response = await http.post(

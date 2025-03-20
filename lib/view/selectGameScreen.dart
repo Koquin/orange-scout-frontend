@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'selectTeamsNStarters.dart'; // Próxima tela
-import 'package:orangescoutfe/util/persistent_snackBar.dart';
-import 'package:orangescoutfe/util/checks.dart';
+import 'selectTeamsNStarters.dart';
+import 'package:OrangeScoutFE/util/persistent_snackBar.dart';
+import 'package:OrangeScoutFE/util/checks.dart';
 
 class SelectGameScreen extends StatefulWidget {
   final Function(Widget) onNavigate; // Função para trocar de tela no MainScreen
@@ -38,6 +38,7 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
       ));
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -59,35 +60,44 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GestureDetector(
-              onTap: () => _handleNavigation("5x5"),
-              child: Image.asset(
-                "assets/images/5x5.png",
-                width: 400,
-                height: 150,
-              ),
-            ),
+            _buildGameModeButton("5x5", "assets/images/5x5.png"),
             const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () => _handleNavigation("3x3"),
-              child: Image.asset(
-                "assets/images/3x3.png",
-                width: 400,
-                height: 150,
-              ),
-            ),
+            _buildGameModeButton("3x3", "assets/images/3x3.png"),
             const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () => _handleNavigation("1x1"),
-              child: Image.asset(
-                "assets/images/west_harden.png",
-                width: 400,
-                height: 150,
-              ),
-            ),
+            _buildGameModeButton("1x1", "assets/images/1x1.png"),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildGameModeButton(String mode, String imagePath) {
+    return GestureDetector(
+      onTap: () => _handleNavigation(mode),
+      child: Container(
+        width: 300,
+        height: 150,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20), // Arredonda as bordas
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 5,
+              offset: const Offset(2, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20), // Faz a imagem seguir a borda do container
+          child: Image.asset(
+            imagePath,
+            width: 300,
+            height: 150,
+            fit: BoxFit.cover, // Ajusta a imagem dentro do container
+          ),
+        ),
+      ),
+    );
+  }
+
 }

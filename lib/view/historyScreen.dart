@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:OrangeScoutFE/util/token_utils.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -13,25 +14,19 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> matches = [];
-  String token = '';
   bool isLoading = true;
   bool hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _loadToken();
     fetchMatches();
   }
 
-  void _loadToken() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      token = prefs.getString('auth_token') ?? '';
-    });
-  }
+
 
   Future<void> fetchMatches() async {
+    String? token = await loadToken();
     setState(() {
       isLoading = true;
       hasError = false;
@@ -40,15 +35,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     print("chegou na requisição");
     try {
       final response = await http.get(
-        Uri.parse('http://localhost:8080/match/user'),
+        Uri.parse('http://192.168.18.31:8080/match/user'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );
     print(token);
-    print("passou da requisição");
-      if (response.statusCode == 200) {
+    print("passou da requisição de matches");
+    print(response.statusCode);
+      if (response.statusCode == 200){
+        print("entrou no if");
         List<dynamic> data = jsonDecode(response.body);
         print(data);
         setState(() {
@@ -61,6 +58,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             'team1Logo': match['teamOne']['logoPath'],
             'team2Logo': match['teamTwo']['logoPath'],
           }).toList();
+          print(matches);
           isLoading = false;
         });
       } else {
@@ -79,10 +77,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   /// **Abre a localização da partida específica no Google Maps**
   Future<void> _openMatchLocation(String matchId) async {
+    String? token = await loadToken();
     final response = await http.get(
-      Uri.parse('http://localhost:8080/match/matchLocation/$matchId'),
+      Uri.parse('http://192.168.18.31/match/matchLocation/$matchId'),
       headers: {
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInN1YiI6Im5hb3NrZWN1dUBnbWFpbC5jb20iLCJpYXQiOjE3Mzk0NTY0MDksImV4cCI6MTczOTQ5MjQwOX0.EDF0SEERnn3knHGJA1zNGqcMYMkgxVMZemLE4kiLmSw',
+        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
     );
@@ -105,8 +104,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   /// **Abre todas as localizações no Google Maps**
   Future<void> _openAllLocations() async {
+    String? token = await loadToken();
     final response = await http.get(
-      Uri.parse('http://localhost:8080/match/locations'),
+      Uri.parse('http://192.168.18.31:8080/match/locations'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -160,16 +160,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Histórico de Partidas'),
-        backgroundColor: Color.fromARGB(255, 156, 62, 30),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.map),
-            onPressed: _openAllLocations,
-          ),
-        ],
-      ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -218,13 +208,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Row(
                             children: [
                               Image.asset('assets/images/TeamShieldIcon-cutout.png', width: 60, height: 60),
-                              SizedBox(width: 10),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              SizedBox(width: 5),
+                              Text(matches[index]['team1'], style: TextStyle(color: Colors.grey, fontSize: 16)),
+                              SizedBox(width: 5),
                             ],
                           ),
                           Column(
                             children: [
                               Text(matches[index]['date'], style: TextStyle(color: Colors.grey, fontSize: 16)),
                               Text(matches[index]['score'], style: TextStyle(color: Colors.orange, fontSize: 20)),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              SizedBox(width: 5),
+                              Text(matches[index]['team2'], style: TextStyle(color: Colors.grey, fontSize: 16)),
+                              SizedBox(width: 5),
                             ],
                           ),
                           Row(

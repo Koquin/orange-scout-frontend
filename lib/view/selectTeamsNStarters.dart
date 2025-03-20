@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'gameScreen.dart';
-import 'package:orangescoutfe/util/token_utils.dart';
+import 'package:OrangeScoutFE/util/token_utils.dart';
 
 class SelectTeamsNStarters extends StatefulWidget {
   final String gameMode;
@@ -22,8 +22,8 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
   List<dynamic> playersTeam2 = [];
   List<dynamic> selectedPlayersTeam1 = [];
   List<dynamic> selectedPlayersTeam2 = [];
-  String endPointTeam = "http://localhost:8080/team";
-  String endPointPlayer = "http://localhost:8080/player";
+  String endPointTeam = "http://192.168.18.31:8080/team";
+  String endPointPlayer = "http://192.168.18.31:8080/player";
 
   @override
   void initState() {
@@ -47,6 +47,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     );
 
     if (response.statusCode == 200) {
+      print("Requisition successful, status code = 200");
       setState(() {
         teams = jsonDecode(response.body);
       });
@@ -167,7 +168,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                   teams[teamIndex]['teamName'],
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                Image.asset("assets/images/TeamShieldIcon.png", width: 50, height: 50),
+                Image.asset("assets/images/TeamShieldIcon-cutout.png", width: 50, height: 50),
               ],
             ),
             GestureDetector(
