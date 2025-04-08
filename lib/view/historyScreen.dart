@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:OrangeScoutFE/util/token_utils.dart';
+import 'package:OrangeScoutFE/view/statScreen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -159,6 +160,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -200,8 +206,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                             onPressed: () {
                               final matchId = matches[index]['id'];
+                              print(matchId);
                               if (matchId != null) {
-                                _openMatchLocation(matchId.toString());
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StatsScreen(matchId: matchId),
+                                  ),
+                                );
                               }
                             },
                           ),
@@ -250,7 +262,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: _openAllLocations,
-                    child: Text("Ver Todas as Localizações"),
+                    child: Text("See all locations"),
                   ),
                 ],
               ),

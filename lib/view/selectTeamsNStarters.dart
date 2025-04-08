@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'gameScreen.dart';
 import 'package:OrangeScoutFE/util/token_utils.dart';
+import 'dart:io';
 
 class SelectTeamsNStarters extends StatefulWidget {
   final String gameMode;
   final VoidCallback onBack;
+  final Function(Widget screen) changeScreen;
 
-  const SelectTeamsNStarters({Key? key, required this.gameMode, required this.onBack}) : super(key: key);
+  const SelectTeamsNStarters({
+    Key? key,
+    required this.gameMode,
+    required this.onBack,
+    required this.changeScreen,
+  }) : super(key: key);
 
   @override
   _SelectTeamsNStartersState createState() => _SelectTeamsNStartersState();
@@ -47,7 +55,6 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     );
 
     if (response.statusCode == 200) {
-      print("Requisition successful, status code = 200");
       setState(() {
         teams = jsonDecode(response.body);
       });
@@ -66,7 +73,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
       return;
     }
     final response = await http.get(
-      Uri.parse('$endPointPlayer/$teamId'),
+      Uri.parse('$endPointPlayer/team-players/$teamId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -85,6 +92,42 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
         }
       });
     }
+  }
+
+  void startGame() {
+    Map<int, Map<String, int>> playerStats = {};
+
+    for (var player in selectedPlayersTeam1 + selectedPlayersTeam2) {
+      playerStats[player['id']] = {
+        "three_pointer": 0,
+        "two_pointer": 0,
+        "one_pointer": 0,
+        "missed_three_pointer": 0,
+        "missed_two_pointer": 0,
+        "missed_one_pointer": 0,
+        "steal": 0,
+        "turnover": 0,
+        "block": 0,
+        "assist": 0,
+        "offensive_rebound": 0,
+        "defensive_rebound": 0,
+        "foul": 0,
+      };
+    }
+
+    Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+        builder: (context) => GameScreen(
+        team1: teams[team1Index],
+        team2: teams[team2Index],
+        startersTeam1: selectedPlayersTeam1,
+        startersTeam2: selectedPlayersTeam2,
+        gameMode: widget.gameMode,
+        playerStats: {},
+      ),
+    ),
+    );
   }
 
   void showPlayerSelectionDialog(int index, bool isTeam1, List<dynamic> availablePlayers) {
@@ -158,22 +201,46 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GestureDetector(
-              onTap: () => changeTeam(false, isTeam1),
-              child: Image.asset("assets/images/arrow_left.png", width: 30, height: 30),
+            IconButton(
+              icon: Image.asset("assets/images/arrow_left.png", width: 50, height: 50),
+              onPressed: () => changeTeam(false, isTeam1),
             ),
             Column(
               children: [
                 Text(
                   teams[teamIndex]['teamName'],
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
-                Image.asset("assets/images/TeamShieldIcon-cutout.png", width: 50, height: 50),
+                Builder(
+                  builder: (_) {
+                    try {
+                      final path = teams[teamIndex]['logoPath'];
+                      if (path != null && File(path).existsSync()) {
+                        return Image.file(
+                          File(path),
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        );
+                      } else {
+                        throw FileSystemException(); // força cair no catch se o caminho não existir
+                      }
+                    } catch (e) {
+                      // Exibe a imagem padrão caso ocorra algum erro ao carregar a imagem do time
+                      return Image.asset(
+                        "assets/images/TeamShieldIcon-cutout.png",
+                        width: 100,
+                        height: 100,
+                      );
+                    }
+                  },
+                ),
+
               ],
             ),
-            GestureDetector(
-              onTap: () => changeTeam(true, isTeam1),
-              child: Image.asset("assets/images/arrow.png", width: 30, height: 30),
+            IconButton(
+              icon: Image.asset("assets/images/arrow.png", width: 50, height: 50),
+              onPressed: () => changeTeam(true, isTeam1),
             ),
           ],
         ),
@@ -194,18 +261,27 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
             (index) => GestureDetector(
           onTap: () => showPlayerSelectionDialog(index, isTeam1, availablePlayers),
           child: Container(
+            width: 60, // Largura fixa
+            height: 60, // Altura fixa
             margin: EdgeInsets.all(4),
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border.all(color: Colors.black),
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(
-              selectedPlayers.length > index && selectedPlayers[index] != null
-                  ? (selectedPlayers[index]['jerseyNumber']?.toString() ?? '-')
-                  : '-',
-              style: TextStyle(fontSize: 18),
+            alignment: Alignment.center,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                selectedPlayers.length > index && selectedPlayers[index] != null
+                    ? (selectedPlayers[index]['jerseyNumber']?.toString() ?? '-')
+                    : '-',
+                style: TextStyle(
+                  fontSize: 28, // Tamanho base, reduzido automaticamente pelo FittedBox
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
             ),
           ),
         ),
@@ -213,60 +289,51 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     );
   }
 
-  void startGame() {
-    Map<int, Map<String, int>> playerStats = {};
-
-    for (var player in selectedPlayersTeam1 + selectedPlayersTeam2) {
-      playerStats[player.id] = {
-        "three_pointer": 0,
-        "two_pointer": 0,
-        "one_pointer": 0,
-        "missed_three_pointer": 0,
-        "missed_two_pointer": 0,
-        "missed_one_pointer": 0,
-        "steal": 0,
-        "turnover": 0,
-        "block": 0,
-        "assist": 0,
-        "offensive_rebound": 0,
-        "defensive_rebound": 0,
-        "foul": 0,
-      };
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => GameScreen(
-          team1: teams[team1Index],
-          team2: teams[team2Index],
-          startersTeam1: selectedPlayersTeam1,
-          startersTeam2: selectedPlayersTeam2,
-          gameMode: widget.gameMode,
-          playerStats: {},
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     return Scaffold(
-      body: teams.length < 2
-          ? Center(child: CircularProgressIndicator())
-          : Column(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          buildTeamSelection(true),
-          ElevatedButton(
-            onPressed: (selectedPlayersTeam1.isNotEmpty && selectedPlayersTeam2.isNotEmpty)
-                ? startGame
-                : null,
-            child: Text("START"),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.0,
+            colors: [
+              Color(0xFFFF4500),
+              Color(0xFF84442E),
+              Colors.black,
+            ],
+            stops: [0.0, 0.5, 0.9],
           ),
-          buildTeamSelection(false),
-        ],
+        ),
+        child: teams.length < 2
+            ? Center(child: CircularProgressIndicator())
+            : Column(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            buildTeamSelection(true),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                backgroundColor: Colors.orange,
+              ),
+              onPressed: (selectedPlayersTeam1.isNotEmpty && selectedPlayersTeam2.isNotEmpty)
+                  ? startGame
+                  : null,
+              child: Text("START", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+            buildTeamSelection(false),
+          ],
+        ),
       ),
     );
   }
+
 }

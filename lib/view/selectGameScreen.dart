@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'selectTeamsNStarters.dart';
 import 'package:OrangeScoutFE/util/persistent_snackBar.dart';
 import 'package:OrangeScoutFE/util/checks.dart';
+import 'selectTeamsNStarters.dart';
 
 class SelectGameScreen extends StatefulWidget {
-  final Function(Widget) onNavigate; // Função para trocar de tela no MainScreen
+  final Function(Widget) onNavigate;
   const SelectGameScreen({Key? key, required this.onNavigate}) : super(key: key);
-
 
   @override
   _SelectGameScreenState createState() => _SelectGameScreenState();
 }
 
 class _SelectGameScreenState extends State<SelectGameScreen> {
+  String _pressedMode = "";
+
   Future<void> _handleNavigation(String gameMode) async {
     bool isValidated = await checkUserValidation();
     bool hasEnoughTeams = await checkUserTeams();
@@ -32,15 +35,24 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
         navigation: "/createTeam",
       );
     } else {
-      widget.onNavigate(SelectTeamsNStarters(
-        gameMode: gameMode,
-        onBack: () => widget.onNavigate(SelectGameScreen(onNavigate: widget.onNavigate)),
-      ));
+      widget.onNavigate(
+        SelectTeamsNStarters(
+          gameMode: gameMode,
+          onBack: () => widget.onNavigate(Container()),
+          changeScreen: widget.onNavigate, // <--- ADICIONADO AQUI
+        ),
+      );
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -61,9 +73,9 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _buildGameModeButton("5x5", "assets/images/5x5.png"),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
             _buildGameModeButton("3x3", "assets/images/3x3.png"),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
             _buildGameModeButton("1x1", "assets/images/1x1.png"),
           ],
         ),
@@ -74,11 +86,14 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
   Widget _buildGameModeButton(String mode, String imagePath) {
     return GestureDetector(
       onTap: () => _handleNavigation(mode),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
         width: 300,
         height: 150,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20), // Arredonda as bordas
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.orange, width: 4),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.3),
@@ -88,16 +103,26 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20), // Faz a imagem seguir a borda do container
-          child: Image.asset(
-            imagePath,
-            width: 300,
-            height: 150,
-            fit: BoxFit.cover, // Ajusta a imagem dentro do container
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTapDown: (_) => setState(() => _pressedMode = mode),
+            onTapUp: (_) {
+              setState(() => _pressedMode = "");
+              _handleNavigation(mode);
+            },
+            child: AnimatedScale(
+              scale: _pressedMode == mode ? 0.95 : 1.0,
+              duration: const Duration(milliseconds: 150),
+              child: Image.asset(
+                imagePath,
+                width: 300,
+                height: 150,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
-
 }

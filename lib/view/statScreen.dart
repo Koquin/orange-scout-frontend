@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:OrangeScoutFE/view/mapScreen.dart';
+import 'package:OrangeScoutFE/util/token_utils.dart';
 
 class StatsScreen extends StatefulWidget {
-  final String matchId; //id da match
+  final int matchId;
 
   const StatsScreen({Key? key, required this.matchId}) : super(key: key);
 
@@ -14,13 +15,14 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   List<dynamic> stats = [];
-  bool isLoading = true; //variavel para controle de carregamento da página
-  Map<String, List<dynamic>> teamsStats = {}; //variavel dos times
-  String? selectedTeamFilter; //variavel de seleção do filtro
+  bool isLoading = true;
+  Map<String, List<dynamic>> teamsStats = {};
+  String? selectedTeamFilter;
   List<String> availableTeams = [];
+  String? matchLocation; // Variável para armazenar a localização da partida
 
-  double latitude = 0.0; //variavel de latitude
-  double longitude = 0.0; //variavel de longitude
+  String statsUrl = 'http://192.168.18.31:8080/stats';
+  String locationUrl = 'http://192.168.18.31:8080/location';
 
   @override
   void initState() {
@@ -29,179 +31,172 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> fetchStats() async {
-    final response = await http
-        .get(Uri.parse('http://192.168.18.31:8081/stats/${widget.matchId}'));//coloca de volta para localhost:8080
+    String? token = await loadToken();
 
-    if (response.statusCode == 200) {
-      var jsonData = jsonDecode(response.body);
-      var statsList = jsonData['stats'];
-      var location = jsonData['location']; // Pegando a localização corretamente
+    try {
+      // Requisição das estatísticas
+      final statsResponse = await http.get(
+        Uri.parse('$statsUrl/${widget.matchId}'),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token"
+        },
+      );
 
-      Map<String, List<dynamic>> teamStats = {};
-      for (var stat in statsList) {
-        String team = stat['team'];
-        if (!teamStats.containsKey(team)) {
-          teamStats[team] = [];
+      if (statsResponse.statusCode == 200) {
+        var statsData = jsonDecode(statsResponse.body);
+
+        if (statsData is Map<String, dynamic> && statsData.containsKey('stats')) {
+          statsData = statsData['stats'];
         }
-        teamStats[team]?.add(stat);
+
+        Map<String, List<dynamic>> teamStats = {};
+        for (var stat in statsData) {
+          if (stat is Map<String, dynamic> && stat.containsKey('teamName')) {
+            String team = stat['teamName'];
+            teamStats.putIfAbsent(team, () => []).add(stat);
+          }
+        }
+
+        // Requisição da localização
+        final locationResponse = await http.get(
+          Uri.parse('$locationUrl/${widget.matchId}'),
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer $token"
+          },
+        );
+
+        String? locationName;
+        if (locationResponse.statusCode == 200) {
+          var locationData = jsonDecode(locationResponse.body);
+          if (locationData is Map<String, dynamic> && locationData.containsKey('venueName')) {
+            locationName = locationData['venueName'];
+          }
+        }
+
+        setState(() {
+          stats = statsData;
+          teamsStats = teamStats;
+          availableTeams = teamStats.keys.toList();
+          isLoading = false;
+          matchLocation = locationName; // Atualiza a variável de localização
+        });
+      } else {
+        throw Exception('Erro ao carregar dados');
       }
-
-      setState(() {
-        stats = statsList;
-        teamsStats = teamStats;
-        availableTeams = teamStats.keys.toList();
-        isLoading = false;
-
-        // Armazenando latitude e longitude corretamente
-        latitude = location['latitude'] ?? 0.0;
-        longitude = location['longitude'] ?? 0.0;
-      });
-    } else {
-      throw Exception('Falha ao carregar as estatísticas');
+    } catch (e) {
+      print("Erro ao buscar dados: $e");
     }
   }
 
-
-  void applyFilter(String filter) {
+  void applyFilter(String? filter) {
     setState(() {
-      if (filter == 'Ambos') {
-        selectedTeamFilter = null; // Quando for "Ambos", não filtra por time
-      } else {
-        selectedTeamFilter = filter;
-      }
+      selectedTeamFilter = filter == "All Teams" ? null : filter;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    Map<String, List<dynamic>> filteredStats = {};
-
-    // Aplicar o filtro escolhido
-    if (selectedTeamFilter != null) {
-      filteredStats = {selectedTeamFilter!: teamsStats[selectedTeamFilter!] ?? []};
-    } else {
-      filteredStats = teamsStats;
-    }
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    Map<String, List<dynamic>> filteredStats = selectedTeamFilter != null
+        ? {selectedTeamFilter!: teamsStats[selectedTeamFilter!] ?? []}
+        : teamsStats;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Estatísticas da Partida'),
+        title: Text("${matchLocation != null ? '$matchLocation' : ''}", style: TextStyle(fontSize: 20),),
         backgroundColor: Color.fromARGB(255, 202, 66, 56),
+        leading: IconButton(
+          icon: Image.asset('assets/images/arrow_left.png', width: 50, height: 50),
+          onPressed: () {
+            Navigator.pop(context); // Volta para a tela anterior
+          },
+        ),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: applyFilter,//filtro de time
-            itemBuilder: (context) => [
-              ...availableTeams,
-              'Ambos',
-            ].map((team) => PopupMenuItem(
-              value: team,
-              child: Text(team),
-            )).toList(),
-          ),
+          if (availableTeams.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: Image.asset('assets/images/filterIcon.png', width: 50, height: 50),
+              onSelected: applyFilter,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: "All Teams", // Agora o valor é uma string identificável
+                  child: Text("All Teams"),
+                ),
+                ...availableTeams.map((team) =>
+                    PopupMenuItem(value: team, child: Text(team))),
+              ],
+            ),
         ],
       ),
-
       body: isLoading
           ? Center(child: CircularProgressIndicator())
-          : Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [ //configura o degradê na vertical
-                    const Color.fromARGB(255, 231, 148, 23),
-                    const Color.fromARGB(255, 202, 66, 56),
-                    const Color.fromARGB(255, 53, 33, 33),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+          : ListView(
+        children: filteredStats.keys.map((team) {
+          var players = filteredStats[team] ?? [];
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  team,
+                  style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black),
                 ),
               ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('PLAYER')),
+                    DataColumn(label: Text('3PT')),
+                    DataColumn(label: Text('2PT')),
+                    DataColumn(label: Text('1PT')),
+                    DataColumn(label: Text('STEAL')),
+                    DataColumn(label: Text('TURNOVER')),
+                    DataColumn(label: Text('BLOCK')),
+                    DataColumn(label: Text('ASSIST')),
+                    DataColumn(label: Text('OFF REB')),
+                    DataColumn(label: Text('DEF REB')),
+                    DataColumn(label: Text('FOUL')),
+                  ],
+                  rows: players.map((playerStats) {
+                    int threeMade = playerStats['three_pointer'];
+                    int threeMissed = playerStats['missed_three_pointer'];
+                    int twoMade = playerStats['two_pointer'];
+                    int twoMissed = playerStats['missed_two_pointer'];
+                    int oneMade = playerStats['one_pointer'];
+                    int oneMissed = playerStats['missed_one_pointer'];
 
-              child: ListView(
-                children: filteredStats.keys.map((team) {
-                  var players = filteredStats[team];
-                  if (players != null && players.isNotEmpty) { //faz um if para mostrar os times de acordo com o filtro
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                            team,
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ),
-
-                        Container(
-                          margin: EdgeInsets.all(8.0),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 6.0,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-
-                          child: SingleChildScrollView( //aqui o cabeçalho tem que ficar de acordo com a ordem das estisticas e nome reais
-                            scrollDirection: Axis.horizontal, //configura um scroll para a tabela
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('Jogador')),
-                                DataColumn(label: Text('3 pontos')),
-                                DataColumn(label: Text('2 pontos')),
-                                DataColumn(label: Text('1 ponto')),
-                                DataColumn(label: Text('Erro 3 pontos')),
-                                DataColumn(label: Text('Erro 2 pontos')),
-                                DataColumn(label: Text('Erro 1 ponto')),
-                                DataColumn(label: Text('Rebote ofensivo')),
-                                DataColumn(label: Text('Rebote defensivo')),
-                                DataColumn(label: Text('Roubo')),
-                                DataColumn(label: Text('Assistência')),
-                                DataColumn(label: Text('Bloqueio')),
-                                DataColumn(label: Text('Turnover')),
-                                DataColumn(label: Text('Falta')),
-                              ],
-                              rows: players.map((playerStats) {
-                                return DataRow(
-                                  cells: [
-                                    DataCell(Text(playerStats['playerName'])),
-                                    DataCell(Text(playerStats['threePoints'].toString())),
-                                    DataCell(Text(playerStats['twoPoints'].toString())),
-                                    DataCell(Text(playerStats['onePoint'].toString())),
-                                    DataCell(Text(playerStats['missThreePoints'].toString())),
-                                    DataCell(Text(playerStats['missTwoPoints'].toString())),
-                                    DataCell(Text(playerStats['missOnePoint'].toString())),
-                                    DataCell(Text(playerStats['offensiveRebound'].toString())),
-                                    DataCell(Text(playerStats['defensiveRebound'].toString())),
-                                    DataCell(Text(playerStats['steal'].toString())),
-                                    DataCell(Text(playerStats['assist'].toString())),
-                                    DataCell(Text(playerStats['block'].toString())),
-                                    DataCell(Text(playerStats['turnover'].toString())),
-                                    DataCell(Text(playerStats['foul'].toString())),
-                                  ],
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(playerStats['playerJersey'].toString())),
+                        DataCell(Text('$threeMade/${threeMade + threeMissed}')), // 3PT
+                        DataCell(Text('$twoMade/${twoMade + twoMissed}')),       // 2PT
+                        DataCell(Text('$oneMade/${oneMade + oneMissed}')),       // 1PT
+                        DataCell(Text(playerStats['steal'].toString())),
+                        DataCell(Text(playerStats['turnover'].toString())),
+                        DataCell(Text(playerStats['block'].toString())),
+                        DataCell(Text(playerStats['assist'].toString())),
+                        DataCell(Text(playerStats['offensive_rebound'].toString())),
+                        DataCell(Text(playerStats['defensive_rebound'].toString())),
+                        DataCell(Text(playerStats['foul'].toString())),
                       ],
                     );
-                  } else {
-                    return Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        'No players found to $team',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    );
-                  }
-                }).toList(),
+                  }).toList(),
+                )
               ),
-            ),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 }

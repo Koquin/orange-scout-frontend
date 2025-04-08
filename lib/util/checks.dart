@@ -25,7 +25,7 @@ Future<bool> checkUserValidation() async {
         return false;
       }
     } else {
-      print("Requisition code was other than 200");
+      print("Requisition code was other than 200 for User Validation");
       return false;
     }
   } catch (e) {
@@ -56,7 +56,7 @@ Future<bool> checkUserTeams() async {
         return false;
       }
     } else {
-      print("Requisition code was other than 200");
+      print("Requisition code was other than for User Teams");
       return false;
     }
   } catch (e) {
@@ -65,23 +65,32 @@ Future<bool> checkUserTeams() async {
   }
 }
 
-Future<bool> validateToken(String? token) async {
+Future<bool> isTokenExpired(String? token) async {
   if (token == null || token.isEmpty) return false;
 
   try {
     final response = await http.post(
       Uri.parse('http://192.168.18.31:8080/auth/isTokenValid'),
         headers : {
-          'Authorization' : 'Bearer $token',
           'Content-Type': 'application/json',
         },
       body: jsonEncode({'token': token}),
     );
-
+    print(response.body);
     if (response.statusCode == 200) {
-      return response.body.trim().toLowerCase() == 'true';
+      print("Response for token is valid is 200");
+      if (response.body.trim().toLowerCase() == 'false'){
+        return false;
+      }
+      else {
+        return true;
+      }
+    } else if (response.statusCode == 403) {
+      print("Response for token is valid is 403");
+      return true;
     } else {
-      return false;
+      print("Response for token is valid is other");
+      return true;
     }
   } catch (e) {
     print("Requisition error: $e");

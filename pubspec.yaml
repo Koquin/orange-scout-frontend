@@ -59,6 +59,8 @@ flutter:
     - assets/images/arrow.png
     - assets/images/arrow_left.png
     - assets/images/StatisticsIcon.png
+    - assets/images/filterIcon.png
+    - assets/images/FinishIcon.png
 fonts:
   - family: Inter
     fonts:

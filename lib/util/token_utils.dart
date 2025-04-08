@@ -11,3 +11,7 @@ void saveToken(String token) async {
   await prefs.setString('auth_token', token);
 }
 
+Future<void> clearToken() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove('auth_token');
+}

@@ -4,36 +4,30 @@ import 'view/historyScreen.dart';
 import 'view/registerScreen.dart';
 import 'view/loginScreen.dart';
 import 'view/verificationScreen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:OrangeScoutFE/util/checks.dart';
 import 'view/gameScreen.dart';
 import 'controller/match_controller.dart';
-
-Future<String?> _loadToken() async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  return prefs.getString('auth_token');
-}
+import 'package:OrangeScoutFE/util/token_utils.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  String? token = await _loadToken(); // Espera carregar o token
-  bool validToken = await validateToken(token); // Espera validar o token
-  Map<String, dynamic>? lastMatch;
-  if (token != null) {
-    lastMatch = await checkLastMatch(token);
-  } else {
-    lastMatch = null;
-  }
+  String? token = await loadToken();
+  bool expiredToken = token == null || await isTokenExpired(token);
+  Map<String, dynamic>? lastMatch = token != null ? await checkLastMatch(token) : null;
 
-  runApp(MyApp(validToken: validToken, lastMatch: lastMatch ?? {}));
+  print('Token expirado?: $expiredToken');
+  print('Token existe?: $token');
+  print('Última partida?: $lastMatch');
+
+  runApp(MyApp(expiredToken: expiredToken, lastMatch: lastMatch));
 }
 
 class MyApp extends StatelessWidget {
-  final bool validToken;
+  final bool expiredToken;
   final Map<String, dynamic>? lastMatch;
 
-  const MyApp({super.key, required this.validToken, required this.lastMatch});
+  const MyApp({super.key, required this.expiredToken, required this.lastMatch});
 
   @override
   Widget build(BuildContext context) {
@@ -43,11 +37,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.orange,
       ),
-      home: validToken
-          ? (lastMatch != null
-          ? LastMatchDialog(lastMatch: lastMatch!) // Usa '!' para garantir que não é nulo
-          : MainScreen())
-          : LoginScreen(),
+      home: _getHomeScreen(),
       routes: {
         '/main': (context) => MainScreen(),
         '/history': (context) => HistoryScreen(),
@@ -56,6 +46,16 @@ class MyApp extends StatelessWidget {
         '/validationScreen': (context) => VerificationScreen(),
       },
     );
+  }
+
+  Widget _getHomeScreen() {
+    if (expiredToken) {
+      return LoginScreen();
+    } else if (lastMatch != null) {
+      return LastMatchDialog(lastMatch: lastMatch!);
+    } else {
+      return MainScreen();
+    }
   }
 }
 
@@ -66,45 +66,42 @@ class LastMatchDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black54,
-      body: AlertDialog(
-        title: Text("You have an unfinished match"),
-        content: Text("You want to continue it?"),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              String? token = await _loadToken();
-              if (token != null) {
-                await finishMatch(lastMatch["id"], token);
-              }
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => MainScreen()),
-              );
-            },
-            child: Text("No"),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => GameScreen(
-                    team1: lastMatch["team1"],
-                    team2: lastMatch["team2"],
-                    startersTeam1: lastMatch["startersTeam1"],
-                    startersTeam2: lastMatch["startersTeam2"],
-                    gameMode: lastMatch["gameMode"],
-                    playerStats: lastMatch["playerStats"],
-                  ),
+    return AlertDialog(
+      title: const Text("You have an unfinished match"),
+      content: const Text("Do you want to continue it?"),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            String? token = await loadToken();
+            if (token != null) {
+              await finishMatch(lastMatch["id"], token);
+            }
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => MainScreen()),
+            );
+          },
+          child: const Text("No"),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GameScreen(
+                  team1: lastMatch["team1"],
+                  team2: lastMatch["team2"],
+                  startersTeam1: lastMatch["startersTeam1"],
+                  startersTeam2: lastMatch["startersTeam2"],
+                  gameMode: lastMatch["gameMode"],
+                  playerStats: lastMatch["playerStats"],
                 ),
-              );
-            },
-            child: Text("Yes"),
-          ),
-        ],
-      ),
+              ),
+            );
+          },
+          child: const Text("Yes"),
+        ),
+      ],
     );
   }
 }

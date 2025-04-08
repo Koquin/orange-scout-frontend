@@ -97,6 +97,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     setState(() {
       if (!playerStats.containsKey(jerseyNumber)) {
         playerStats[jerseyNumber] = {
+          "jerseyNumber": jerseyNumber,
           "three_pointer": 0,
           "two_pointer": 0,
           "one_pointer": 0,
@@ -111,6 +112,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
           "defensive_rebound": 0,
           "foul": 0,
         };
+        print(playerStats);
       }
 
       playerStats[jerseyNumber]![statKey] = (playerStats[jerseyNumber]![statKey] ?? 0) + 1;
@@ -159,32 +161,59 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive) {
+    print("🌀 AppLifecycleState: ${state.name}");
+
+    if (state == AppLifecycleState.detached) {
+      print("💀 App está sendo destruído!");
       await saveMatchProgress();
     }
   }
 
   void finishMatch() async {
-    print("Finishing match");
+    print("🏁 Iniciando finishMatch...");
 
+    String? token = await loadToken();
+    print("🔑 Token carregado: $token");
+
+    print("📍 Buscando localização atual...");
     Map<String, double>? location = await getCurrentLocation();
     if (location == null || !location.containsKey('latitude') || !location.containsKey('longitude')) {
-      print('Not possible to get location');
+      print('❌ Localização não encontrada ou incompleta: $location');
       return;
     }
+    print("📍 Localização: lat=${location['latitude']}, long=${location['longitude']}");
 
-    // Converter 'playerStats' de Map<int, Map<String, int>> para List<Map<String, dynamic>>
+    print("📊 Processando playerStats...");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
+      print("Player stats: ${playerStats.entries}");
+      final stats = entry.value;
+      print(stats["jerseyNumber"]);
       return {
-        "playerId": entry.key,
-        ...entry.value, // Adiciona os atributos do stats
+        "matchId": null,
+        "statsId": null,
+        "playerJersey": stats["jerseyNumber"],
+        "three_pointer": stats["three_pointer"] ?? 0,
+        "two_pointer": stats["two_pointer"] ?? 0,
+        "one_pointer": stats["one_pointer"] ?? 0,
+        "missed_three_pointer": stats["missed_three_pointer"] ?? 0,
+        "missed_two_pointer": stats["missed_two_pointer"] ?? 0,
+        "missed_one_pointer": stats["missed_one_pointer"] ?? 0,
+        "steal": stats["steal"] ?? 0,
+        "turnover": stats["turnover"] ?? 0,
+        "block": stats["block"] ?? 0,
+        "assist": stats["assist"] ?? 0,
+        "offensive_rebound": stats["offensive_rebound"] ?? 0,
+        "defensive_rebound": stats["defensive_rebound"] ?? 0,
+        "foul": stats["foul"] ?? 0
       };
     }).toList();
 
-    // Criar o corpo da requisição conforme MatchDTO
+    print("✅ Lista final de stats: $statsList");
+
+    print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
-      "idMatch": 30,
-      "userId": 1,
+      "matchId": null,
+      "userId": null,
       "matchDate": DateTime.now().toIso8601String(),
       "teamOneScore": teamOneScore,
       "teamTwoScore": teamTwoScore,
@@ -206,13 +235,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         "longitude": location['longitude']
       }
     };
-    // Recuperar token JWT do armazenamento local
+    print("📦 Corpo da requisição: $matchData");
+
     if (token == null) {
-      print("Error: Token is null");
+      print("❌ Token está nulo!");
       return;
     }
 
-    // Fazer a requisição para o backend com o token JWT
+    print("📡 Enviando requisição para o endpoint: $endPointMatch");
     final response = await http.post(
       Uri.parse(endPointMatch),
       headers: {
@@ -236,7 +266,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     }
   }
 
+
   Future<void> saveMatchProgress() async {
+    String?token = await loadToken();
     print("🟡 Salvando progresso da partida...");
 
     // Obter localização do usuário
@@ -248,16 +280,33 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     // Converter 'playerStats' de Map<int, Map<String, int>> para List<Map<String, dynamic>>
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
+      print("Player stats: ${playerStats.entries}");
+      final stats = entry.value;
+      print(stats["jerseyNumber"]);
       return {
-        "playerId": entry.key,
-        ...entry.value, // Adiciona os atributos do stats
+        "matchId": null,
+        "statsId": null,
+        "playerJersey": stats["jerseyNumber"],
+        "three_pointer": stats["three_pointer"] ?? 0,
+        "two_pointer": stats["two_pointer"] ?? 0,
+        "one_pointer": stats["one_pointer"] ?? 0,
+        "missed_three_pointer": stats["missed_three_pointer"] ?? 0,
+        "missed_two_pointer": stats["missed_two_pointer"] ?? 0,
+        "missed_one_pointer": stats["missed_one_pointer"] ?? 0,
+        "steal": stats["steal"] ?? 0,
+        "turnover": stats["turnover"] ?? 0,
+        "block": stats["block"] ?? 0,
+        "assist": stats["assist"] ?? 0,
+        "offensive_rebound": stats["offensive_rebound"] ?? 0,
+        "defensive_rebound": stats["defensive_rebound"] ?? 0,
+        "foul": stats["foul"] ?? 0
       };
     }).toList();
 
     // Criar o corpo da requisição
     Map<String, dynamic> matchData = {
-      "idMatch": 30,
-      "userId": 1,
+      "matchId": null,
+      "userId": null,
       "matchDate": DateTime.now().toIso8601String(),
       "teamOneScore": teamOneScore,
       "teamTwoScore": teamTwoScore,
@@ -277,7 +326,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       "location": {
         "latitude": location['latitude'],
         "longitude": location['longitude']
-      },
+      }
     };
 
     if (token == null) {
@@ -546,7 +595,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                     color: Colors.transparent,
                     child: Center(
                       child: Text(
-                        "AÇÕES",
+                        "$teamOneScore X $teamTwoScore",
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
