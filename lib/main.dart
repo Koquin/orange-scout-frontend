@@ -14,7 +14,7 @@ void main() async {
 
   String? token = await loadToken();
   bool expiredToken = token == null || await isTokenExpired(token);
-  Map<String, dynamic>? lastMatch = token != null ? await checkLastMatch(token) : null;
+  Map<String, dynamic>? lastMatch = token != null ? await checkLastMatch() : null;
 
   print('Token expirado?: $expiredToken');
   print('Token existe?: $token');

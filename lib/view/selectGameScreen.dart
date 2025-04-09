@@ -39,7 +39,7 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
         SelectTeamsNStarters(
           gameMode: gameMode,
           onBack: () => widget.onNavigate(Container()),
-          changeScreen: widget.onNavigate, // <--- ADICIONADO AQUI
+          changeScreen: widget.onNavigate,
         ),
       );
     }

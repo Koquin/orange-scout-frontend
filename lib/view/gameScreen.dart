@@ -43,6 +43,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   int teamTwoScore = 0;
   Future<String?>? token = loadToken();
   String endPointMatch = "http://192.168.18.31:8080/match";
+  bool _hasSavedProgress = false;
 
   @override
   void initState() {
@@ -163,7 +164,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     print("🌀 AppLifecycleState: ${state.name}");
 
-    if (state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused) {
       print("💀 App está sendo destruído!");
       await saveMatchProgress();
     }
@@ -233,7 +234,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       "location": {
         "latitude": location['latitude'],
         "longitude": location['longitude']
-      }
+      },
+      "finished": true,
+      "gamemode": widget.gameMode
     };
     print("📦 Corpo da requisição: $matchData");
 
@@ -266,27 +269,33 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     }
   }
 
-
   Future<void> saveMatchProgress() async {
-    String?token = await loadToken();
-    print("🟡 Salvando progresso da partida...");
-
-    // Obter localização do usuário
-    Map<String, double>? location = await getCurrentLocation();
-    if (location == null || !location.containsKey('latitude') || !location.containsKey('longitude')) {
-      print('🔴 Erro: Não foi possível obter a localização.');
+    if (_hasSavedProgress) {
+      print("⚠️ Progresso já foi salvo. Ignorando nova chamada.");
       return;
     }
+    _hasSavedProgress = true; // 🔒 Travar para próximas chamadas
 
-    // Converter 'playerStats' de Map<int, Map<String, int>> para List<Map<String, dynamic>>
+    print("💾 Iniciando saveMatchProgress...");
+
+    String? token = await loadToken();
+    print("🔑 Token carregado: $token");
+
+    print("📍 Buscando localização atual...");
+    Map<String, double>? location = await getCurrentLocation();
+    if (location == null || !location.containsKey('latitude') || !location.containsKey('longitude')) {
+      print('❌ Localização não encontrada ou incompleta: $location');
+      return;
+    }
+    print("📍 Localização: lat=${location['latitude']}, long=${location['longitude']}");
+
+    print("📊 Processando playerStats...");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
-      print("Player stats: ${playerStats.entries}");
       final stats = entry.value;
-      print(stats["jerseyNumber"]);
       return {
         "matchId": null,
         "statsId": null,
-        "playerJersey": stats["jerseyNumber"],
+        "playerJersey": entry.key,
         "three_pointer": stats["three_pointer"] ?? 0,
         "two_pointer": stats["two_pointer"] ?? 0,
         "one_pointer": stats["one_pointer"] ?? 0,
@@ -303,7 +312,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       };
     }).toList();
 
-    // Criar o corpo da requisição
+    print("✅ Lista final de stats: $statsList");
+
+    print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
       "matchId": null,
       "userId": null,
@@ -326,14 +337,19 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       "location": {
         "latitude": location['latitude'],
         "longitude": location['longitude']
-      }
+      },
+      "finished": false,
+      "gamemode": widget.gameMode
     };
 
+    print("📦 Corpo da requisição: $matchData");
+
     if (token == null) {
-      print("Error: Token is null");
+      print("❌ Token está nulo!");
       return;
     }
 
+    print("📡 Enviando requisição para o endpoint: $endPointMatch/save-progress");
     final response = await http.post(
       Uri.parse('$endPointMatch/save-progress'),
       headers: {
@@ -343,12 +359,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       body: jsonEncode(matchData),
     );
 
+    print("🔵 Status Code da resposta: ${response.statusCode}");
+    print("🔵 Corpo da resposta: ${response.body}");
+
     if (response.statusCode == 200) {
       print("🟢 Progresso da partida salvo com sucesso!");
     } else {
       print("🔴 Erro ao salvar progresso: ${response.statusCode}");
     }
   }
+
 
   Widget ElevatedScoreButton(String imagePath, String statKey, VoidCallback onPressed, int points) {
     return GestureDetector(

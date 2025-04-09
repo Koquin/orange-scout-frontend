@@ -1,9 +1,12 @@
+import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 const String apiUrl = "http://192.168.18.31:8080/match"; // Substitua pelo seu endpoint real
 
-Future<Map<String, dynamic>?> checkLastMatch(String token) async {
+Future<Map<String, dynamic>?> checkLastMatch() async {
+  print("Checando ultima partida...");
+  String? token = await loadToken();
   final response = await http.get(
     Uri.parse("$apiUrl/last"),
     headers: {
