@@ -3,11 +3,10 @@ import 'package:flutter/services.dart';
 import 'selectTeamsNStarters.dart';
 import 'package:OrangeScoutFE/util/persistent_snackBar.dart';
 import 'package:OrangeScoutFE/util/checks.dart';
-import 'selectTeamsNStarters.dart';
 
 class SelectGameScreen extends StatefulWidget {
   final Function(Widget) onNavigate;
-  const SelectGameScreen({Key? key, required this.onNavigate}) : super(key: key);
+  const SelectGameScreen({super.key, required this.onNavigate});
 
   @override
   _SelectGameScreenState createState() => _SelectGameScreenState();

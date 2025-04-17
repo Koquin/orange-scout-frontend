@@ -6,6 +6,8 @@ import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'mainScreen.dart';
 
 class VerificationScreen extends StatefulWidget {
+  const VerificationScreen({super.key});
+
   @override
   _VerificationScreenState createState() => _VerificationScreenState();
 }

@@ -98,7 +98,8 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     Map<int, Map<String, int>> playerStats = {};
 
     for (var player in selectedPlayersTeam1 + selectedPlayersTeam2) {
-      playerStats[player['id']] = {
+      print(player);
+      playerStats[player['id_player']] = {
         "three_pointer": 0,
         "two_pointer": 0,
         "one_pointer": 0,
@@ -116,17 +117,17 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     }
 
     Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
+      context,
+      MaterialPageRoute(
         builder: (context) => GameScreen(
-        team1: teams[team1Index],
-        team2: teams[team2Index],
-        startersTeam1: selectedPlayersTeam1,
-        startersTeam2: selectedPlayersTeam2,
-        gameMode: widget.gameMode,
-        playerStats: {},
+          team1: teams[team1Index],
+          team2: teams[team2Index],
+          startersTeam1: selectedPlayersTeam1,
+          startersTeam2: selectedPlayersTeam2,
+          gameMode: widget.gameMode,
+          playerStats: [],
+        ),
       ),
-    ),
     );
   }
 

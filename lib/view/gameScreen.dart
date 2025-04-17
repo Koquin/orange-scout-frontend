@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -16,7 +15,7 @@ class GameScreen extends StatefulWidget {
   final List<dynamic> startersTeam1;
   final List<dynamic> startersTeam2;
   final String gameMode;
-  final Map<String, dynamic> playerStats;
+  final List<Map<String, dynamic>> playerStats;
 
 
   const GameScreen({
@@ -49,18 +48,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    playerStats = widget.playerStats.map((key, value) {
-      return MapEntry(int.parse(key), Map<String, int>.from(value));
-    });
+    print("Starters 1: ${widget.startersTeam1} e Starters 2: ${widget.startersTeam2}");
   }
 
   Color getBorderColor(String action) {
     if (action.contains("1 Point Made") || action.contains("2 Point Made") || action.contains("3 Point Made")) {
-      return Colors.green; // Acertos → Verde
+      return Colors.green;
     } else if (action.contains("Missed")|| action.contains("Turnover") || action.contains("Foul")) {
-      return Colors.red; // Erros e faltas → Vermelho
+      return Colors.red;
     } else {
-      return Colors.yellow; // Assist, block, steal, OR, DR, substituição → Amarelo
+      return Colors.yellow;
     }
   }
 
@@ -113,7 +110,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
           "defensive_rebound": 0,
           "foul": 0,
         };
-        print(playerStats);
+        print("playerStats no updateStat: $playerStats");
       }
 
       playerStats[jerseyNumber]![statKey] = (playerStats[jerseyNumber]![statKey] ?? 0) + 1;
@@ -175,20 +172,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     String? token = await loadToken();
     print("🔑 Token carregado: $token");
-
-    print("📍 Buscando localização atual...");
-    Map<String, double>? location = await getCurrentLocation();
-    if (location == null || !location.containsKey('latitude') || !location.containsKey('longitude')) {
-      print('❌ Localização não encontrada ou incompleta: $location');
-      return;
-    }
-    print("📍 Localização: lat=${location['latitude']}, long=${location['longitude']}");
-
     print("📊 Processando playerStats...");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
-      print("Player stats: ${playerStats.entries}");
+      print("Player stats no finishMatch: ${playerStats.entries}");
       final stats = entry.value;
-      print(stats["jerseyNumber"]);
       return {
         "matchId": null,
         "statsId": null,
@@ -232,11 +219,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       },
       "stats": statsList,
       "location": {
-        "latitude": location['latitude'],
-        "longitude": location['longitude']
+        "latitude": null,
+        "longitude": null
       },
       "finished": true,
-      "gamemode": widget.gameMode
+      "gamemode": widget.gameMode,
+      "startersTeam1": widget.startersTeam1,
+      "startersTeam2": widget.startersTeam2
     };
     print("📦 Corpo da requisição: $matchData");
 
@@ -274,21 +263,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       print("⚠️ Progresso já foi salvo. Ignorando nova chamada.");
       return;
     }
-    _hasSavedProgress = true; // 🔒 Travar para próximas chamadas
+    _hasSavedProgress = true;
 
     print("💾 Iniciando saveMatchProgress...");
 
     String? token = await loadToken();
     print("🔑 Token carregado: $token");
-
-    print("📍 Buscando localização atual...");
-    Map<String, double>? location = await getCurrentLocation();
-    if (location == null || !location.containsKey('latitude') || !location.containsKey('longitude')) {
-      print('❌ Localização não encontrada ou incompleta: $location');
-      return;
-    }
-    print("📍 Localização: lat=${location['latitude']}, long=${location['longitude']}");
-
     print("📊 Processando playerStats...");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
       final stats = entry.value;
@@ -335,11 +315,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       },
       "stats": statsList,
       "location": {
-        "latitude": location['latitude'],
-        "longitude": location['longitude']
+        "latitude": null,
+        "longitude": null
       },
       "finished": false,
-      "gamemode": widget.gameMode
+      "gamemode": widget.gameMode,
+      "startersTeam1": widget.startersTeam1,
+      "startersTeam2": widget.startersTeam2
     };
 
     print("📦 Corpo da requisição: $matchData");
@@ -368,6 +350,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       print("🔴 Erro ao salvar progresso: ${response.statusCode}");
     }
   }
+
 
 
   Widget ElevatedScoreButton(String imagePath, String statKey, VoidCallback onPressed, int points) {
@@ -501,8 +484,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                           color: Color(0xFF3A2E2E),
                           child: Column(
                             children: List.generate(5, (index) {
-                              int jerseyNumber = widget.startersTeam1[index]['jerseyNumber']; // Pegando o número do jogador
-                              bool isSelected = selectedPlayer == jerseyNumber && selectedTeam == 1; // Comparando com o número do jogador
+                              int jerseyNumber = widget.startersTeam1[index]['jerseyNumber'];
+                              bool isSelected = selectedPlayer == jerseyNumber && selectedTeam == 1;
 
                               return GestureDetector(
                                 onTap: () {

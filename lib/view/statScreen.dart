@@ -7,7 +7,7 @@ import 'package:OrangeScoutFE/util/token_utils.dart';
 class StatsScreen extends StatefulWidget {
   final int matchId;
 
-  const StatsScreen({Key? key, required this.matchId}) : super(key: key);
+  const StatsScreen({super.key, required this.matchId});
 
   @override
   _StatsScreenState createState() => _StatsScreenState();
@@ -108,7 +108,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("${matchLocation != null ? '$matchLocation' : ''}", style: TextStyle(fontSize: 20),),
+        title: Text(matchLocation != null ? '$matchLocation' : '', style: TextStyle(fontSize: 20),),
         backgroundColor: Color.fromARGB(255, 202, 66, 56),
         leading: IconButton(
           icon: Image.asset('assets/images/arrow_left.png', width: 50, height: 50),
