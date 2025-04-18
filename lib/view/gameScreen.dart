@@ -16,10 +16,18 @@ class GameScreen extends StatefulWidget {
   final List<dynamic> startersTeam2;
   final String gameMode;
   final List<Map<String, dynamic>> playerStats;
+  final int userId;
+  final int matchId;
+  final int teamOneScore;
+  final int teamTwoScore;
 
 
   const GameScreen({
     super.key,
+    required this.teamOneScore,
+    required this.teamTwoScore,
+    required this.matchId,
+    required this.userId,
     required this.team1,
     required this.team2,
     required this.startersTeam1,
@@ -48,7 +56,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    print("Starters 1: ${widget.startersTeam1} e Starters 2: ${widget.startersTeam2}");
+    teamOneScore = widget.teamOneScore;
+    teamTwoScore = widget.teamTwoScore;
+    print("Starters 1: ${widget.startersTeam1} e Starters 2: ${widget.startersTeam2}\n"
+        "Match id: ${widget.matchId}, User Id: ${widget.userId}, Team 1: ${widget.team1}, Team 2: ${widget.team2}\n"
+        "Game mode: ${widget.gameMode}, Player Stats: $playerStats, Team one score: $teamOneScore, Team two score: $teamTwoScore");
   }
 
   Color getBorderColor(String action) {
@@ -161,6 +173,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     print("🌀 AppLifecycleState: ${state.name}");
 
+    if (state == AppLifecycleState.resumed) {
+      print("✅ App voltou à ativa. Permitindo novo salvamento.");
+      _hasSavedProgress = false;
+    }
+
     if (state == AppLifecycleState.paused) {
       print("💀 App está sendo destruído!");
       await saveMatchProgress();
@@ -200,8 +217,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
-      "matchId": null,
-      "userId": null,
+      "idMatch": widget.matchId,
+      "userId": widget.userId,
       "matchDate": DateTime.now().toIso8601String(),
       "teamOneScore": teamOneScore,
       "teamTwoScore": teamTwoScore,
@@ -227,6 +244,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       "startersTeam1": widget.startersTeam1,
       "startersTeam2": widget.startersTeam2
     };
+
     print("📦 Corpo da requisição: $matchData");
 
     if (token == null) {
@@ -296,8 +314,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
-      "matchId": null,
-      "userId": null,
+      "idMatch": widget.matchId,
+      "userId": widget.userId,
       "matchDate": DateTime.now().toIso8601String(),
       "teamOneScore": teamOneScore,
       "teamTwoScore": teamTwoScore,

@@ -51,15 +51,14 @@ class _MainScreenState extends State<MainScreen> {
               if (token != null) {
                 await finishMatch(lastMatch["idMatch"], token);
               }
-              Navigator.of(context).pop(); // Fecha o diálogo
+              Navigator.of(context).pop();
             },
             child: const Text("No"),
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop(); // Fecha o diálogo antes de navegar
+              Navigator.of(context).pop();
 
-              // Conversão segura
               final List<Map<String, dynamic>> convertedStats = (lastMatch["stats"] as List)
                   .map((e) => Map<String, dynamic>.from(e))
                   .toList();
@@ -68,6 +67,10 @@ class _MainScreenState extends State<MainScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => GameScreen(
+                    teamOneScore: lastMatch["teamOneScore"],
+                    teamTwoScore: lastMatch["teamTwoScore"],
+                    userId: lastMatch["userId"],
+                    matchId: lastMatch["idMatch"],
                     team1: lastMatch["teamOne"],
                     team2: lastMatch["teamTwo"],
                     startersTeam1: lastMatch["startersTeam1"],

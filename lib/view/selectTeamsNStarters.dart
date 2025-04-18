@@ -57,6 +57,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     if (response.statusCode == 200) {
       setState(() {
         teams = jsonDecode(response.body);
+        print(teams);
       });
 
       if (teams.length >= 2) {
@@ -96,7 +97,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
 
   void startGame() {
     Map<int, Map<String, int>> playerStats = {};
-
+    print("Team 1: ${teams[team1Index]}, Team 2: ${teams[team2Index]}");
     for (var player in selectedPlayersTeam1 + selectedPlayersTeam2) {
       print(player);
       playerStats[player['id_player']] = {
@@ -120,6 +121,10 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
       context,
       MaterialPageRoute(
         builder: (context) => GameScreen(
+          userId: 0,
+          matchId: 0,
+          teamOneScore: 0,
+          teamTwoScore: 0,
           team1: teams[team1Index],
           team2: teams[team2Index],
           startersTeam1: selectedPlayersTeam1,
