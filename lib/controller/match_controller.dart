@@ -2,7 +2,7 @@ import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-const String apiUrl = "http://192.168.18.31:8080/match"; // Substitua pelo seu endpoint real
+const String apiUrl = "http://192.168.18.31:8080/match";
 
 Future<Map<String, dynamic>?> checkLastMatch() async {
   print("Checando ultima partida...");
@@ -58,7 +58,7 @@ Future<void> saveMatchToDB({
     "startersTeam2": startersTeam2,
     "gameMode": gameMode,
     "playerStats": playerStats,
-    "finished": false, // Partida ainda não finalizada
+    "finished": false,
   });
 
   final response = await http.post(

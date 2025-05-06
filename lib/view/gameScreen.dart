@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:OrangeScoutFE/util/token_utils.dart';
+import 'package:OrangeScoutFE/util/location.dart';
 
 import 'mainScreen.dart';
 
@@ -51,56 +51,40 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   Future<String?>? token = loadToken();
   String endPointMatch = "http://192.168.18.31:8080/match";
   bool _hasSavedProgress = false;
+  int? matchId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     teamOneScore = widget.teamOneScore;
     teamTwoScore = widget.teamTwoScore;
-    print("Starters 1: ${widget.startersTeam1} e Starters 2: ${widget.startersTeam2}\n"
-        "Match id: ${widget.matchId}, User Id: ${widget.userId}, Team 1: ${widget.team1}, Team 2: ${widget.team2}\n"
-        "Game mode: ${widget.gameMode}, Player Stats: $playerStats, Team one score: $teamOneScore, Team two score: $teamTwoScore");
+    int matchId  = widget.matchId;
   }
 
   Color getBorderColor(String action) {
-    if (action.contains("1 Point Made") || action.contains("2 Point Made") || action.contains("3 Point Made")) {
+    if (
+    action.contains("1 Point Made") ||
+        action.contains("2 Point Made") ||
+        action.contains("3 Point Made") ||
+        action == "one_pointer" ||
+        action == "two_pointer" ||
+        action == "three_pointer"
+    ) {
       return Colors.green;
-    } else if (action.contains("Missed")|| action.contains("Turnover") || action.contains("Foul")) {
+    } else if (
+    action.contains("Missed") ||
+        action.contains("Turnover") ||
+        action.contains("Foul") ||
+        action.contains("missed") ||
+        action.contains("turnover") ||
+        action.contains("foul")
+    ) {
       return Colors.red;
     } else {
       return Colors.yellow;
     }
-  }
-
-  Future<Map<String, double>?> getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      print('Location service disabled');
-      return null;
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        print('Location permission denied');
-        return null;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      print('Permission denied permanently');
-      return null;
-    }
-
-    Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
-
-    return {'latitude': position.latitude, 'longitude': position.longitude};
   }
 
   void updateStat(int jerseyNumber, String statKey) {
@@ -128,7 +112,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       playerStats[jerseyNumber]![statKey] = (playerStats[jerseyNumber]![statKey] ?? 0) + 1;
     });
   }
-
 
   void addActionToPlayer(String action) {
     setState(() {
@@ -186,10 +169,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
   void finishMatch() async {
     print("🏁 Iniciando finishMatch...");
-
     String? token = await loadToken();
     print("🔑 Token carregado: $token");
     print("📊 Processando playerStats...");
+
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
       print("Player stats no finishMatch: ${playerStats.entries}");
       final stats = entry.value;
@@ -215,9 +198,17 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     print("✅ Lista final de stats: $statsList");
 
+    // 📍 Obtendo localização atual e nome do lugar
+    Map<String, dynamic>? locationData = await getCurrentLocation();
+    double? latitude = locationData?['latitude'];
+    double? longitude = locationData?['longitude'];
+    String? placeName = locationData?['placeName'];
+
+    print("📍 Localização obtida: lat=$latitude, long=$longitude, place=$placeName");
+
     print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
-      "idMatch": widget.matchId,
+      "idMatch": matchId,
       "userId": widget.userId,
       "matchDate": DateTime.now().toIso8601String(),
       "teamOneScore": teamOneScore,
@@ -236,8 +227,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       },
       "stats": statsList,
       "location": {
-        "latitude": null,
-        "longitude": null
+        "latitude": latitude,
+        "longitude": longitude,
+        "placeName": placeName
       },
       "finished": true,
       "gamemode": widget.gameMode,
@@ -267,14 +259,35 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     if (response.statusCode == 201) {
       print("🟢 Partida finalizada com sucesso!");
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => MainScreen()),
-      );
+      print(response.body);
+
+      try {
+        print("Chegou no responseBody");
+        final responseBody = jsonDecode(response.body);
+        print("Chegou no newMatchId");
+        final newMatchId = responseBody;
+        print("Match id: $newMatchId");
+        if (newMatchId != null) {
+          setState(() {
+            matchId = newMatchId;
+          });
+          print("✅ Match ID atualizado no widget: $matchId");
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => MainScreen()),
+          );
+        } else {
+          print("⚠️ matchId não veio na resposta.");
+        }
+      } catch (e) {
+        print('Erro ao decodificar resposta ou acessar matchId: $e');
+      }
     } else {
       print("🔴 Erro ao finalizar a partida: ${response.statusCode}");
     }
   }
+
+
 
   Future<void> saveMatchProgress() async {
     if (_hasSavedProgress) {
@@ -288,6 +301,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     String? token = await loadToken();
     print("🔑 Token carregado: $token");
     print("📊 Processando playerStats...");
+    print("Match id: $matchId");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
       final stats = entry.value;
       return {
@@ -314,7 +328,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
     print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
-      "idMatch": widget.matchId,
+      "idMatch": matchId,
       "userId": widget.userId,
       "matchDate": DateTime.now().toIso8601String(),
       "teamOneScore": teamOneScore,
@@ -363,15 +377,95 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     print("🔵 Corpo da resposta: ${response.body}");
 
     if (response.statusCode == 200) {
-      print("🟢 Progresso da partida salvo com sucesso!");
-    } else {
+      final responseBody = jsonDecode(response.body);
+      final newMatchId = responseBody['matchId'];
+      print("🟢 Progresso da partida salvo com sucesso! (dentro do if statuscode 200)");
+
+      if (newMatchId != null) {
+        setState(() {
+          matchId = newMatchId;
+        });
+        print("✅ Match ID atualizado no widget: $matchId");
+      } else {
+        print("⚠️ matchId não veio na resposta.");
+      }
+    }
+    else {
       print("🔴 Erro ao salvar progresso: ${response.statusCode}");
     }
   }
 
+  Widget SubstitutionButton({
+    required String imagePath,
+    required int teamId,
+    required BuildContext context,
+    required Function(Map<String, dynamic>) onPlayerSelected,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        String? token = await loadToken();
 
+        try {
+          final response = await http.get(
+            Uri.parse('http://192.168.18.31:8080/player/team-players/$teamId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          );
 
-  Widget ElevatedScoreButton(String imagePath, String statKey, VoidCallback onPressed, int points) {
+          if (response.statusCode == 200) {
+            List<dynamic> players = jsonDecode(response.body);
+            print("Players: $players");
+            // Abre o modal para seleção
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.black87,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (_) {
+                return ListView.builder(
+                  itemCount: players.length,
+                  itemBuilder: (ctx, index) {
+                    final player = players[index];
+                    return ListTile(
+                      title: Text(
+                        player['playerJersey'],
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onPlayerSelected(player); // Callback com player selecionado
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro ao buscar jogadores: ${response.statusCode}')),
+            );
+          }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro inesperado ao buscar jogadores')),
+          );
+        }
+      },
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          image: DecorationImage(image: AssetImage(imagePath)),
+          border: Border.all(color: Colors.yellow, width: 1),
+        ),
+      ),
+    );
+  }
+
+  Widget ScoreButton (String imagePath, String statKey, VoidCallback onPressed, int points) {
     return GestureDetector(
       onTap: () {
         if (selectedPlayer != null) {
@@ -383,13 +477,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       child: Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          border: Border.all(color: getBorderColor(statKey), width: 1),
           image: DecorationImage(image: AssetImage(imagePath)),
         ),
       ),
     );
   }
 
-  Widget ElevatedActionButton(String imagePath, String statKey, VoidCallback onPressed) {
+  Widget ActionButton (String imagePath, String statKey, VoidCallback onPressed) {
     return GestureDetector(
       onTap: () {
         if (selectedPlayer != null) {
@@ -400,27 +495,29 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       child: Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          border: Border.all(color: getBorderColor(statKey), width: 1),
           image: DecorationImage(image: AssetImage(imagePath)),
         ),
       ),
     );
   }
 
-  Widget ElevatedActionButton2(String imagePath, VoidCallback onPressed) {
-    return GestureDetector(
-      onTap: () {
-        onPressed(); // Mantém o callback original
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          image: DecorationImage(image: AssetImage(imagePath)),
-        ),
-      ),
-    );
-  }
+  // Widget SubstitutionButton(String imagePath, VoidCallback onPressed) {
+  //   return GestureDetector(
+  //     onTap: () {
+  //       onPressed(); // Mantém o callback original
+  //     },
+  //     child: Container(
+  //       decoration: BoxDecoration(
+  //         shape: BoxShape.circle,
+  //         image: DecorationImage(image: AssetImage(imagePath)),
+  //         border: Border.all(color: Colors.yellow, width: 1)
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  Widget ElevatedActionButtonSquare(String imagePath, VoidCallback onPressed) {
+  Widget OptionsButton (String imagePath, VoidCallback onPressed) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -437,7 +534,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       context: context,
       builder: (BuildContext context) {
         return Container(
-          padding: EdgeInsets.all(10),
+          padding: EdgeInsets.all(5),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -456,12 +553,30 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                 title: Text("Finish Match"),
                 onTap: () => finishMatch(),
               ),
+              ListTile(
+                leading: Icon(Icons.exit_to_app, color: Colors.red),
+                title: Text(
+                  "Exit Without Saving",
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context); // Fecha o bottom sheet
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => MainScreen()),
+                        (Route<dynamic> route) => false,
+                  );
+                },
+              ),
             ],
           ),
         );
       },
     );
   }
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -470,303 +585,216 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       DeviceOrientation.landscapeLeft,
     ]);
 
-    return Scaffold(
-      body: Row(
-        children: [
-          // TIME 1 (Jogadores + Ações)
-          Expanded(
-            child: Column(
-              children: [
-                // Nome do time 1
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(8.0),
-                  color: Color(0xFF3A2E2E),
+    Widget buildActionCenter(bool isMobile) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.0,
+            colors: [
+              Color(0xFFFF4500),
+              Color(0xFF84442E),
+              Color(0xFF3A2E2E),
+            ],
+            stops: [0.0, 0.2, 0.7],
+          ),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 40,
+              child: Center(
+                child: Text(
+                  "$teamOneScore X $teamTwoScore",
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
+            ),
+            SizedBox(height: 10),
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: isMobile ? 4 : 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                padding: EdgeInsets.zero,
+                childAspectRatio: 1.5,
+                children: [
+                  ScoreButton('assets/images/1PointActionIcon.png', "one_pointer", () => addActionToPlayer("1 Point Made"), 1),
+                  ScoreButton('assets/images/2PointActionIcon.png', "two_pointer", () => addActionToPlayer("2 Point Made"), 2),
+                  ScoreButton('assets/images/3PointActionIcon.png', "three_pointer", () => addActionToPlayer("3 Point Made"), 3),
+                  ActionButton('assets/images/1PointMissedActionIcon.png', "missed_one_pointer", () => addActionToPlayer("1 Point Missed")),
+                  ActionButton('assets/images/2PointMissedActionIcon.png', "missed_two_pointer", () => addActionToPlayer("2 Point Missed")),
+                  ActionButton('assets/images/3PointMissedActionIcon.png', "missed_three_pointer", () => addActionToPlayer("3 Point Missed")),
+                  ActionButton('assets/images/AssistActionIcon.png', "assist", () => addActionToPlayer("Assist")),
+                  ActionButton('assets/images/BlockActionIcon.png', "block", () => addActionToPlayer("Block")),
+                  ActionButton('assets/images/StealActionIcon.png', "steal", () => addActionToPlayer("Steal")),
+                  ActionButton('assets/images/OffensiveReboundActionIcon.png', "offensive_rebound", () => addActionToPlayer("O. Rebound")),
+                  ActionButton('assets/images/DefensiveReboundActionIcon.png', "defensive_rebound", () => addActionToPlayer("D. Rebound")),
+                  ActionButton('assets/images/TurnOverActionIcon.png', "turnover", () => addActionToPlayer("Turnover")),
+                  ActionButton('assets/images/FoulActionIcon.png', "foul", () => addActionToPlayer("Foul")),
+                  OptionsButton('assets/images/OptionsIcon.png', showExtraMenu),
+                  SubstitutionButton(
+                    imagePath: 'assets/images/SubstitutionActionIcon.png',
+                    teamId: 1, // Id do time que está substituindo
+                    context: context,
+                    onPlayerSelected: (player) {
+                      // Lógica após selecionar um jogador
+                      print("Jogador selecionado para substituição: ${player['name']}");
+                      // Aqui você pode chamar uma função de substituição
+                    },
+                  ),                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    //Build action list
+    Widget buildActionList(List actions, ScrollController controller) {
+      return Expanded(
+        flex: 5,
+        child: Container(
+          color: Colors.black,
+          child: ListView.builder(
+            controller: controller,
+            padding: EdgeInsets.zero,
+            itemCount: actions.length,
+            itemBuilder: (context, index) {
+              String action = actions[index];
+              Color borderColor = getBorderColor(action);
+
+              return Container(
+                margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: Colors.orange, width: 2),
+                ),
+                child: Center(
                   child: Text(
-                    "${widget.team1['abbreviation']}",
-                    style: TextStyle(
-                      color: Color(0xFFF6B712),
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    action.replaceAll("Offensive Rebound", "O.Rebound").replaceAll("Defensive Rebound", "D.Rebound"),
+                    style: TextStyle(fontSize: 14, color: borderColor, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                 ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      // Jogadores do Time 1 (Apenas números)
-                      Expanded(
-                        flex: 4, // Aumentando a largura
-                        child: Container(
-                          color: Color(0xFF3A2E2E),
-                          child: Column(
-                            children: List.generate(5, (index) {
-                              int jerseyNumber = widget.startersTeam1[index]['jerseyNumber'];
-                              bool isSelected = selectedPlayer == jerseyNumber && selectedTeam == 1;
-
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    print(widget.team1);
-                                    selectedPlayer = jerseyNumber; // Agora guarda o número do jogador
-                                    selectedTeam = 1;
-                                  });
-                                },
-                                child: Container(
-                                  color: isSelected ? Color(0xFFF6B712) : Colors.transparent,
-                                  padding: EdgeInsets.all(12.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        "$jerseyNumber", // Exibe o número correto
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      if (isSelected) ...[
-                                        SizedBox(width: 8), // Espaço entre o número e a imagem
-                                        Image.asset(
-                                          "assets/images/basketball.png",
-                                          width: 40, // Ajuste o tamanho da imagem
-                                          height: 40,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                        ),
-                      ),
-
-
-
-
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          color: Colors.black, // Fundo preto
-                          child: ListView.builder(
-                            controller: _team1ScrollController,
-                            padding: EdgeInsets.zero,
-                            itemCount: team1Actions.length,
-                            itemBuilder: (context, index) {
-                              String action = team1Actions[index];
-                              Color borderColor = getBorderColor(action);
-
-                              return Container(
-                                margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                                padding: EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.black, // Fundo preto das ações
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(color: Colors.orange, width: 2), // Borda laranja ao redor da ação
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      action.replaceAll("Offensive Rebound", "O.Rebound").replaceAll("Defensive Rebound", "D.Rebound"),
-                                      style: TextStyle(fontSize: 14, color: borderColor, fontWeight: FontWeight.bold), // Nome da ação com a cor correta
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
+        ),
+      );
+    }
+    //Build players list
+    Widget buildPlayers(List starters, int teamNumber) {
+      return Expanded(
+        flex: 4,
+        child: Container(
+          color: Color(0xFF3A2E2E),
+          child: Column(
+            children: List.generate(
+              widget.gameMode == "5x5" ? 5 : widget.gameMode == "3x3" ? 3 : 1,
+                  (index) {
+                int jerseyNumber = starters[index]['jerseyNumber'];
+                bool isSelected = selectedPlayer == jerseyNumber && selectedTeam == teamNumber;
 
-          // Central de ações
-          Expanded(
-            flex: 1,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.0,
-                  colors: [
-                    Color(0xFFFF4500),
-                    Color(0xFF84442E),
-                    Color(0xFF3A2E2E),
-                  ],
-                  stops: [0.0, 0.2, 0.7],
-                ),
-              ),
-              clipBehavior: Clip.hardEdge,
-              child: Column(
-                children: [
-                  Container(
-                    height: 40,
-                    color: Colors.transparent,
-                    child: Center(
-                      child: Text(
-                        "$teamOneScore X $teamTwoScore",
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GridView.count(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 5,
-                      mainAxisSpacing: 5,
-                      padding: EdgeInsets.zero,
-                      childAspectRatio: 1.5,
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      selectedPlayer = jerseyNumber;
+                      selectedTeam = teamNumber;
+                    });
+                  },
+                  child: Container(
+                    color: isSelected ? Color(0xFFF6B712) : Colors.transparent,
+                    padding: EdgeInsets.all(12.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        ElevatedScoreButton('assets/images/1PointActionIcon.png', "one_pointer", () => addActionToPlayer("1 Point Made"), 1),
-                        ElevatedScoreButton('assets/images/2PointActionIcon.png', "two_pointer", () => addActionToPlayer("2 Point Made"), 2),
-                        ElevatedScoreButton('assets/images/3PointActionIcon.png', "three_pointer", () => addActionToPlayer("3 Point Made"), 3),
-                        ElevatedActionButton('assets/images/1PointMissedActionIcon.png', "missed_one_pointer", () => addActionToPlayer("1 Point Missed")),
-                        ElevatedActionButton('assets/images/2PointMissedActionIcon.png', "missed_two_pointer", () => addActionToPlayer("2 Point Missed")),
-                        ElevatedActionButton('assets/images/3PointMissedActionIcon.png', "missed_three_pointer", () => addActionToPlayer("3 Point Missed")),
-                        ElevatedActionButton('assets/images/AssistActionIcon.png', "assist", () => addActionToPlayer("Assist")),
-                        ElevatedActionButton('assets/images/BlockActionIcon.png', "block", () => addActionToPlayer("Block")),
-                        ElevatedActionButton('assets/images/StealActionIcon.png', "steal", () => addActionToPlayer("Steal")),
-                        ElevatedActionButton('assets/images/OffensiveReboundActionIcon.png', "offensive_rebound", () => addActionToPlayer("O. Rebound")),
-                        ElevatedActionButton('assets/images/DefensiveReboundActionIcon.png', "defensive_rebound", () => addActionToPlayer("D. Rebound")),
-                        ElevatedActionButton('assets/images/TurnOverActionIcon.png', "turnover", () => addActionToPlayer("Turnover")),
-                        ElevatedActionButton('assets/images/FoulActionIcon.png', "foul", () => addActionToPlayer("Foul")),
-                        ElevatedActionButtonSquare('assets/images/OptionsIcon.png', showExtraMenu), // Imagem para o botão de reticências
-                        ElevatedActionButton2('assets/images/SubstitutionActionIcon.png', () => addActionToPlayer("Substitution")),
+                         FittedBox(
+                         fit: BoxFit.scaleDown,
+                         child: Text(
+                           "$jerseyNumber",
+                            style: TextStyle(color: Colors.white, fontSize: 37),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        if (isSelected) ...[
+                          SizedBox(width: 8),
+                          Image.asset("assets/images/basketball.png", width: 40, height: 40),
+                        ],
                       ],
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
-
-          // TIME 2 (Ações + Jogadores)
+        ),
+      );
+    }
+    //Build team column
+    Widget buildTeamColumn(Map team, List starters, List actions, ScrollController controller, int teamNumber) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(8.0),
+            color: Color(0xFF3A2E2E),
+            child: Text(
+              "${team['abbreviation']}",
+              style: TextStyle(
+                color: Color(0xFFF6B712),
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
           Expanded(
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(8.0),
-                  color: Color(0xFF3A2E2E),
-                  child: Text(
-                    "${widget.team2['abbreviation']}",
-                    style: TextStyle(
-                      color: Color(0xFFF6B712),
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          color: Colors.black, // Fundo preto
-                          child: ListView.builder(
-                            controller: _team2ScrollController,
-                            padding: EdgeInsets.zero,
-                            itemCount: team2Actions.length,
-                            itemBuilder: (context, index) {
-                              String action = team2Actions[index];
-                              Color borderColor = getBorderColor(action);
-
-                              return Container(
-                                margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                                padding: EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.black, // Fundo preto das ações
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(color: Colors.orange, width: 2), // Borda laranja ao redor da ação
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      action.replaceAll("Offensive Rebound", "O.Rebound").replaceAll("Defensive Rebound", "D.Rebound"),
-                                      style: TextStyle(fontSize: 14, color: borderColor, fontWeight: FontWeight.bold), // Nome da ação com a cor correta
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-
-                          ),
-                        ),
-                      ),
-                      // Jogadores do Time 2 (Apenas números)
-                      Expanded(
-                        flex: 4, // Aumentando a largura
-                        child: Container(
-                          color: Color(0xFF3A2E2E),
-                          child: Column(
-                            children: List.generate(5, (index) {
-                              int jerseyNumber = widget.startersTeam2[index]['jerseyNumber']; // Pegando o número do jogador
-                              bool isSelected = selectedPlayer == jerseyNumber && selectedTeam == 2; // Comparando com o número do jogador
-
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedPlayer = jerseyNumber; // Agora guarda o número do jogador
-                                    selectedTeam = 2;
-                                  });
-                                },
-                                child: Container(
-                                  color: isSelected ? Color(0xFFF6B712) : Colors.transparent,
-                                  padding: EdgeInsets.all(12.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        "$jerseyNumber", // Exibe o número correto
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      if (isSelected) ...[
-                                        SizedBox(width: 8), // Espaço entre o número e a imagem
-                                        Image.asset(
-                                          "assets/images/basketball.png",
-                                          width: 40, // Ajuste o tamanho da imagem
-                                          height: 40,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                        ),
-                      ),
-
-                    ],
-                  ),
-                ),
-              ],
+            child: Row(
+              children: teamNumber == 1
+                  ? [buildPlayers(starters, teamNumber), buildActionList(actions, controller)]
+                  : [buildActionList(actions, controller), buildPlayers(starters, teamNumber)],
             ),
           ),
         ],
-      ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 800;
+
+        if (isMobile) {
+          // LAYOUT VERTICAL (Celulares)
+          return Scaffold(
+            body: Column(
+              children: [
+                // TIME 1
+                Expanded(child: buildTeamColumn(widget.team1, widget.startersTeam1, team1Actions, _team1ScrollController, 1)),
+                // CENTRAL DE AÇÕES
+                SizedBox(
+                  height: 350,
+                  child: buildActionCenter(isMobile),
+                ),
+                // TIME 2
+                Expanded(child: buildTeamColumn(widget.team2, widget.startersTeam2, team2Actions, _team2ScrollController, 2)),
+              ],
+            ),
+          );
+        } else {
+          // LAYOUT HORIZONTAL (Tablet, Desktop)
+          return Scaffold(
+            body: Row(
+              children: [
+                Expanded(child: buildTeamColumn(widget.team1, widget.startersTeam1, team1Actions, _team1ScrollController, 1)),
+                Expanded(flex: 1, child: buildActionCenter(isMobile)),
+                Expanded(child: buildTeamColumn(widget.team2, widget.startersTeam2, team2Actions, _team2ScrollController, 2)),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 }

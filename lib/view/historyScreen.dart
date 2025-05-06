@@ -46,9 +46,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     print("passou da requisição de matches");
     print(response.statusCode);
       if (response.statusCode == 200){
-        print("entrou no if");
+        print("entrou no if statusCode == 200 do fetchMatches");
         List<dynamic> data = jsonDecode(response.body);
-        print(data);
+        print("Dados puxados: $data");
         setState(() {
           matches = data.map((match) => {
             'id': match['idMatch'],
@@ -58,6 +58,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             'date': match['matchDate'],
             'team1Logo': match['teamOne']['logoPath'],
             'team2Logo': match['teamTwo']['logoPath'],
+            'location': match['location_id'],
           }).toList();
           print(matches);
           isLoading = false;

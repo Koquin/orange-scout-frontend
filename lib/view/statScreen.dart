@@ -19,10 +19,10 @@ class _StatsScreenState extends State<StatsScreen> {
   Map<String, List<dynamic>> teamsStats = {};
   String? selectedTeamFilter;
   List<String> availableTeams = [];
-  String? matchLocation; // Variável para armazenar a localização da partida
+  String? matchLocation;
 
   String statsUrl = 'http://192.168.18.31:8080/stats';
-  String locationUrl = 'http://192.168.18.31:8080/location';
+  String matchToGetLocationUrl = 'http://192.168.18.31:8080/match';
 
   @override
   void initState() {
@@ -34,6 +34,7 @@ class _StatsScreenState extends State<StatsScreen> {
     String? token = await loadToken();
 
     try {
+      print("entrou no try");
       // Requisição das estatísticas
       final statsResponse = await http.get(
         Uri.parse('$statsUrl/${widget.matchId}'),
@@ -44,10 +45,12 @@ class _StatsScreenState extends State<StatsScreen> {
       );
 
       if (statsResponse.statusCode == 200) {
+        print("stats buscadas!");
         var statsData = jsonDecode(statsResponse.body);
 
         if (statsData is Map<String, dynamic> && statsData.containsKey('stats')) {
           statsData = statsData['stats'];
+          print("statsData definido!");
         }
 
         Map<String, List<dynamic>> teamStats = {};
@@ -57,10 +60,10 @@ class _StatsScreenState extends State<StatsScreen> {
             teamStats.putIfAbsent(team, () => []).add(stat);
           }
         }
-
+        print("Chegou na requisição de localização!");
         // Requisição da localização
         final locationResponse = await http.get(
-          Uri.parse('$locationUrl/${widget.matchId}'),
+          Uri.parse('$matchToGetLocationUrl/${widget.matchId}'),
           headers: {
             "Content-Type": "application/json",
             "Authorization": "Bearer $token"
@@ -69,12 +72,15 @@ class _StatsScreenState extends State<StatsScreen> {
 
         String? locationName;
         if (locationResponse.statusCode == 200) {
+          print("entrou no 200");
           var locationData = jsonDecode(locationResponse.body);
-          if (locationData is Map<String, dynamic> && locationData.containsKey('venueName')) {
-            locationName = locationData['venueName'];
+          print(locationData['location']);
+          if (locationData['location']['id'] != null) {
+            locationName = locationData['location']['placeName'];
+            print(locationName);
           }
         }
-
+        print("chegou no setState");
         setState(() {
           stats = statsData;
           teamsStats = teamStats;

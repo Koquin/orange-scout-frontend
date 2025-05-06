@@ -12,11 +12,11 @@ class SelectTeamsNStarters extends StatefulWidget {
   final Function(Widget screen) changeScreen;
 
   const SelectTeamsNStarters({
-    Key? key,
+    super.key,
     required this.gameMode,
     required this.onBack,
     required this.changeScreen,
-  }) : super(key: key);
+  });
 
   @override
   _SelectTeamsNStartersState createState() => _SelectTeamsNStartersState();
@@ -37,6 +37,15 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
   void initState() {
     super.initState();
     fetchTeams();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Make sure that Orange Scout can use FULL SCREEN in your device before pressing START"),
+          duration: Duration(seconds: 7),
+        ),
+      );
+    });
   }
 
   Future<void> fetchTeams() async {

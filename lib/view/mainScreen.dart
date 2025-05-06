@@ -7,7 +7,6 @@ import 'loginScreen.dart';
 import 'package:OrangeScoutFE/controller/match_controller.dart';
 import 'gameScreen.dart';
 
-
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -88,8 +87,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-
-
   void _onItemTapped(int index) {
     setState(() {
       _overlayPage = null;
@@ -111,6 +108,19 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _getSelectedPage() {
+    switch (_selectedIndex) {
+      case 0:
+        return SelectGameScreen(onNavigate: _navigateToOverlay);
+      case 1:
+        return TeamsScreen(); // Será recarregado toda vez que for clicado
+      case 2:
+        return HistoryScreen(); // Também será recarregado
+      default:
+        return Container();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,15 +135,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-      body: _overlayPage ??
-          IndexedStack(
-            index: _selectedIndex,
-            children: [
-              SelectGameScreen(onNavigate: _navigateToOverlay),
-              TeamsScreen(),
-              HistoryScreen(),
-            ],
-          ),
+      body: _overlayPage ?? _getSelectedPage(),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF3c3030),
         selectedItemColor: Colors.orange,
@@ -175,8 +177,8 @@ class _MainScreenState extends State<MainScreen> {
             label: '',
           ),
         ],
-
       ),
     );
   }
 }
+
