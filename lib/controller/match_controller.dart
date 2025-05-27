@@ -1,14 +1,15 @@
 import 'package:OrangeScoutFE/util/token_utils.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+String? baseUrl = dotenv.env['API_BASE_URL'];
 const String apiUrl = "http://192.168.18.31:8080/match";
 
 Future<Map<String, dynamic>?> checkLastMatch() async {
-  print("Checando ultima partida...");
   String? token = await loadToken();
   final response = await http.get(
-    Uri.parse("$apiUrl/last"),
+    Uri.parse("$baseUrl/match/last"),
     headers: {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
@@ -17,7 +18,6 @@ Future<Map<String, dynamic>?> checkLastMatch() async {
 
   if (response.statusCode == 200) {
     final Map<String, dynamic> data = json.decode(response.body);
-
     if (data["finished"] == false) {
       return data;
     }
@@ -28,7 +28,7 @@ Future<Map<String, dynamic>?> checkLastMatch() async {
 
 Future<void> finishMatch(int matchId, String token) async {
   final response = await http.put(
-    Uri.parse("$apiUrl/finish/$matchId"),
+    Uri.parse("$baseUrl/match/finish/$matchId"),
     headers: {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
@@ -71,7 +71,7 @@ Future<void> saveMatchToDB({
   );
 
   if (response.statusCode == 200) {
-    print("Match saved succesfully");
+    print("Match saved successfully.");
   } else {
     print("Error saving match: ${response.body}");
   }

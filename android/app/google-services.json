@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "619017522318",
+    "project_id": "orange-scout-analytics-630e4",
+    "storage_bucket": "orange-scout-analytics-630e4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:619017522318:android:a6ebfe1e3585b4e8bc8ddf",
+        "android_client_info": {
+          "package_name": "com.example.orangescoutfe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIsBXoHS4MHUHqKtlKrA865INpU-7xUJk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

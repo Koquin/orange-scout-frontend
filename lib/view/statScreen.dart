@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:OrangeScoutFE/util/token_utils.dart';
@@ -14,15 +15,16 @@ class StatsScreen extends StatefulWidget {
 }
 
 class _StatsScreenState extends State<StatsScreen> {
+  //Base url:
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
+  //Other variables
   List<dynamic> stats = [];
   bool isLoading = true;
   Map<String, List<dynamic>> teamsStats = {};
   String? selectedTeamFilter;
   List<String> availableTeams = [];
   String? matchLocation;
-
-  String statsUrl = 'http://192.168.18.31:8080/stats';
-  String matchToGetLocationUrl = 'http://192.168.18.31:8080/match';
 
   @override
   void initState() {
@@ -34,10 +36,8 @@ class _StatsScreenState extends State<StatsScreen> {
     String? token = await loadToken();
 
     try {
-      print("entrou no try");
-      // Requisição das estatísticas
       final statsResponse = await http.get(
-        Uri.parse('$statsUrl/${widget.matchId}'),
+        Uri.parse('$baseUrl/stats/${widget.matchId}'),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token"
@@ -45,12 +45,10 @@ class _StatsScreenState extends State<StatsScreen> {
       );
 
       if (statsResponse.statusCode == 200) {
-        print("stats buscadas!");
         var statsData = jsonDecode(statsResponse.body);
 
         if (statsData is Map<String, dynamic> && statsData.containsKey('stats')) {
           statsData = statsData['stats'];
-          print("statsData definido!");
         }
 
         Map<String, List<dynamic>> teamStats = {};
@@ -60,10 +58,8 @@ class _StatsScreenState extends State<StatsScreen> {
             teamStats.putIfAbsent(team, () => []).add(stat);
           }
         }
-        print("Chegou na requisição de localização!");
-        // Requisição da localização
         final locationResponse = await http.get(
-          Uri.parse('$matchToGetLocationUrl/${widget.matchId}'),
+          Uri.parse('$baseUrl/match/${widget.matchId}'),
           headers: {
             "Content-Type": "application/json",
             "Authorization": "Bearer $token"
@@ -72,27 +68,23 @@ class _StatsScreenState extends State<StatsScreen> {
 
         String? locationName;
         if (locationResponse.statusCode == 200) {
-          print("entrou no 200");
           var locationData = jsonDecode(locationResponse.body);
-          print(locationData['location']);
           if (locationData['location']['id'] != null) {
             locationName = locationData['location']['placeName'];
-            print(locationName);
           }
         }
-        print("chegou no setState");
         setState(() {
           stats = statsData;
           teamsStats = teamStats;
           availableTeams = teamStats.keys.toList();
           isLoading = false;
-          matchLocation = locationName; // Atualiza a variável de localização
+          matchLocation = locationName;
         });
       } else {
-        throw Exception('Erro ao carregar dados');
+        throw Exception('Error loading data.');
       }
     } catch (e) {
-      print("Erro ao buscar dados: $e");
+      print("Error fetching data: $e");
     }
   }
 
@@ -119,7 +111,7 @@ class _StatsScreenState extends State<StatsScreen> {
         leading: IconButton(
           icon: Image.asset('assets/images/arrow_left.png', width: 50, height: 50),
           onPressed: () {
-            Navigator.pop(context); // Volta para a tela anterior
+            Navigator.pop(context);
           },
         ),
         actions: [
@@ -129,7 +121,7 @@ class _StatsScreenState extends State<StatsScreen> {
               onSelected: applyFilter,
               itemBuilder: (context) => [
                 PopupMenuItem(
-                  value: "All Teams", // Agora o valor é uma string identificável
+                  value: "All Teams",
                   child: Text("All Teams"),
                 ),
                 ...availableTeams.map((team) =>

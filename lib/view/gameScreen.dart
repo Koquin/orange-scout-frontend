@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:OrangeScoutFE/util/token_utils.dart';
@@ -39,19 +40,24 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
   final ScrollController _team1ScrollController = ScrollController();
   final ScrollController _team2ScrollController = ScrollController();
-  int? selectedPlayer;
+  int? selectedPlayerJerseyNumber;
+  int? selectedPlayerId;
   int? selectedTeam;
+  int? selectedTeamId;
   List<String> team1Actions = [];
   List<String> team2Actions = [];
   Map<int, Map<String, int>> playerStats = {};
   int teamOneScore = 0;
   int teamTwoScore = 0;
   Future<String?>? token = loadToken();
-  String endPointMatch = "http://192.168.18.31:8080/match";
   bool _hasSavedProgress = false;
   int? matchId;
+  int? selectedPlayerIndex;
 
   @override
   void initState() {
@@ -60,7 +66,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     teamOneScore = widget.teamOneScore;
     teamTwoScore = widget.teamTwoScore;
-    int matchId  = widget.matchId;
   }
 
   Color getBorderColor(String action) {
@@ -87,11 +92,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     }
   }
 
-  void updateStat(int jerseyNumber, String statKey) {
+  void updateStat(int idPlayer, String statKey) {
     setState(() {
-      if (!playerStats.containsKey(jerseyNumber)) {
-        playerStats[jerseyNumber] = {
-          "jerseyNumber": jerseyNumber,
+      if (!playerStats.containsKey(idPlayer)) {
+        playerStats[idPlayer] = {
+          "id_player": idPlayer,
           "three_pointer": 0,
           "two_pointer": 0,
           "one_pointer": 0,
@@ -106,44 +111,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
           "defensive_rebound": 0,
           "foul": 0,
         };
-        print("playerStats no updateStat: $playerStats");
       }
-
-      playerStats[jerseyNumber]![statKey] = (playerStats[jerseyNumber]![statKey] ?? 0) + 1;
+      playerStats[idPlayer]![statKey] = (playerStats[idPlayer]![statKey] ?? 0) + 1;
     });
-  }
-
-  void addActionToPlayer(String action) {
-    setState(() {
-      if (selectedTeam == 1 && selectedPlayer != null) {
-        team1Actions.insert(0, "$action\n${selectedPlayer!}");
-        Future.delayed(Duration(milliseconds: 100), () {
-          _team1ScrollController.animateTo(
-            0.0,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        });
-      } else if (selectedTeam == 2 && selectedPlayer != null) {
-        team2Actions.insert(0, "$action\n${selectedPlayer!}");
-        Future.delayed(Duration(milliseconds: 100), () {
-          _team2ScrollController.animateTo(
-            0.0,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        });
-      }
-    });
-  }
-
-  void updatePoints(int team, int points){
-    team = selectedTeam!;
-    if (team == 1){
-      teamOneScore += points;
-    } else {
-      teamTwoScore += points;
-    }
   }
 
   @override
@@ -154,32 +124,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
-    print("🌀 AppLifecycleState: ${state.name}");
-
     if (state == AppLifecycleState.resumed) {
-      print("✅ App voltou à ativa. Permitindo novo salvamento.");
       _hasSavedProgress = false;
     }
-
     if (state == AppLifecycleState.paused) {
-      print("💀 App está sendo destruído!");
       await saveMatchProgress();
     }
   }
 
   void finishMatch() async {
-    print("🏁 Iniciando finishMatch...");
     String? token = await loadToken();
-    print("🔑 Token carregado: $token");
-    print("📊 Processando playerStats...");
 
+    print("Stats: ${playerStats.entries}");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
-      print("Player stats no finishMatch: ${playerStats.entries}");
       final stats = entry.value;
       return {
         "matchId": null,
         "statsId": null,
-        "playerJersey": stats["jerseyNumber"],
+        "playerId": stats["id_player"],
         "three_pointer": stats["three_pointer"] ?? 0,
         "two_pointer": stats["two_pointer"] ?? 0,
         "one_pointer": stats["one_pointer"] ?? 0,
@@ -196,17 +158,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       };
     }).toList();
 
-    print("✅ Lista final de stats: $statsList");
-
-    // 📍 Obtendo localização atual e nome do lugar
     Map<String, dynamic>? locationData = await getCurrentLocation();
     double? latitude = locationData?['latitude'];
     double? longitude = locationData?['longitude'];
     String? placeName = locationData?['placeName'];
 
-    print("📍 Localização obtida: lat=$latitude, long=$longitude, place=$placeName");
-
-    print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
       "idMatch": matchId,
       "userId": widget.userId,
@@ -237,77 +193,58 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       "startersTeam2": widget.startersTeam2
     };
 
-    print("📦 Corpo da requisição: $matchData");
-
     if (token == null) {
-      print("❌ Token está nulo!");
+      print("Token is null!");
       return;
     }
 
-    print("📡 Enviando requisição para o endpoint: $endPointMatch");
     final response = await http.post(
-      Uri.parse(endPointMatch),
+      Uri.parse("$baseUrl/match"),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $token"
       },
       body: jsonEncode(matchData),
     );
-
-    print("🔵 Status Code da resposta: ${response.statusCode}");
-    print("🔵 Corpo da resposta: ${response.body}");
-
     if (response.statusCode == 201) {
-      print("🟢 Partida finalizada com sucesso!");
-      print(response.body);
-
       try {
-        print("Chegou no responseBody");
         final responseBody = jsonDecode(response.body);
-        print("Chegou no newMatchId");
         final newMatchId = responseBody;
-        print("Match id: $newMatchId");
         if (newMatchId != null) {
           setState(() {
             matchId = newMatchId;
+            print(matchId);
           });
-          print("✅ Match ID atualizado no widget: $matchId");
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => MainScreen()),
           );
         } else {
-          print("⚠️ matchId não veio na resposta.");
+          print("MatchId is not in the response.");
         }
       } catch (e) {
-        print('Erro ao decodificar resposta ou acessar matchId: $e');
+        print('Error decoding answer or finding matchId: $e');
       }
     } else {
-      print("🔴 Erro ao finalizar a partida: ${response.statusCode}");
+      print("Error finishing match: ${response.statusCode}");
     }
   }
 
-
-
   Future<void> saveMatchProgress() async {
     if (_hasSavedProgress) {
-      print("⚠️ Progresso já foi salvo. Ignorando nova chamada.");
+      print("Progress has already been saved.");
       return;
     }
     _hasSavedProgress = true;
 
-    print("💾 Iniciando saveMatchProgress...");
-
     String? token = await loadToken();
-    print("🔑 Token carregado: $token");
-    print("📊 Processando playerStats...");
-    print("Match id: $matchId");
+    print("Stats: ${playerStats.entries}");
     List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
       final stats = entry.value;
       return {
         "matchId": null,
         "statsId": null,
-        "playerJersey": entry.key,
+        "playerId": stats["id_player"],
         "three_pointer": stats["three_pointer"] ?? 0,
         "two_pointer": stats["two_pointer"] ?? 0,
         "one_pointer": stats["one_pointer"] ?? 0,
@@ -323,10 +260,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         "foul": stats["foul"] ?? 0
       };
     }).toList();
-
-    print("✅ Lista final de stats: $statsList");
-
-    print("🛠️ Montando dados da partida...");
     Map<String, dynamic> matchData = {
       "idMatch": matchId,
       "userId": widget.userId,
@@ -355,47 +288,36 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       "startersTeam1": widget.startersTeam1,
       "startersTeam2": widget.startersTeam2
     };
-
-    print("📦 Corpo da requisição: $matchData");
-
     if (token == null) {
-      print("❌ Token está nulo!");
+      print("Token is null!");
       return;
     }
-
-    print("📡 Enviando requisição para o endpoint: $endPointMatch/save-progress");
+    print("Stats sendo mandado para o backEnd: $matchData");
     final response = await http.post(
-      Uri.parse('$endPointMatch/save-progress'),
+      Uri.parse('$baseUrl/match/save-progress'),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $token"
       },
       body: jsonEncode(matchData),
     );
-
-    print("🔵 Status Code da resposta: ${response.statusCode}");
-    print("🔵 Corpo da resposta: ${response.body}");
-
     if (response.statusCode == 200) {
       final responseBody = jsonDecode(response.body);
       final newMatchId = responseBody['matchId'];
-      print("🟢 Progresso da partida salvo com sucesso! (dentro do if statuscode 200)");
-
       if (newMatchId != null) {
         setState(() {
           matchId = newMatchId;
         });
-        print("✅ Match ID atualizado no widget: $matchId");
       } else {
-        print("⚠️ matchId não veio na resposta.");
+        print("MatchID was not in the response.");
       }
     }
     else {
-      print("🔴 Erro ao salvar progresso: ${response.statusCode}");
+      print("Error saving progress: ${response.statusCode}");
     }
   }
 
-  Widget SubstitutionButton({
+  Widget substitutionButton({
     required String imagePath,
     required int teamId,
     required BuildContext context,
@@ -404,10 +326,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     return GestureDetector(
       onTap: () async {
         String? token = await loadToken();
-
         try {
           final response = await http.get(
-            Uri.parse('http://192.168.18.31:8080/player/team-players/$teamId'),
+            Uri.parse('$baseUrl/player/team-players/$teamId'),
             headers: {
               'Authorization': 'Bearer $token',
             },
@@ -415,8 +336,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
           if (response.statusCode == 200) {
             List<dynamic> players = jsonDecode(response.body);
-            print("Players: $players");
-            // Abre o modal para seleção
             showModalBottomSheet(
               context: context,
               backgroundColor: Colors.black87,
@@ -430,12 +349,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                     final player = players[index];
                     return ListTile(
                       title: Text(
-                        player['playerJersey'],
+                        player['jerseyNumber'].toString(),
                         style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        player['playerName'] ?? '',
+                        style: const TextStyle(color: Colors.white70),
                       ),
                       onTap: () {
                         Navigator.pop(context);
-                        onPlayerSelected(player); // Callback com player selecionado
+                        onPlayerSelected(player);
                       },
                     );
                   },
@@ -444,12 +367,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Erro ao buscar jogadores: ${response.statusCode}')),
+              SnackBar(content: Text('Error fetching players: ${response.statusCode}')),
             );
           }
         } catch (e) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro inesperado ao buscar jogadores')),
+            const SnackBar(content: Text('Unexpected error fetching players.')),
           );
         }
       },
@@ -458,20 +381,20 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         height: 60,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          image: DecorationImage(image: AssetImage(imagePath)),
+          image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover),
           border: Border.all(color: Colors.yellow, width: 1),
         ),
       ),
     );
   }
 
-  Widget ScoreButton (String imagePath, String statKey, VoidCallback onPressed, int points) {
+  Widget scoreButton (String imagePath, String statKey, VoidCallback onPressed, int points) {
     return GestureDetector(
       onTap: () {
-        if (selectedPlayer != null) {
-          updateStat(selectedPlayer!, statKey);
+        if (selectedPlayerId != null) {
+          updateStat(selectedPlayerId!, statKey);
         }
-        onPressed(); // Mantém o callback original
+        onPressed();
         updatePoints(selectedTeam!, points);
       },
       child: Container(
@@ -484,11 +407,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 
-  Widget ActionButton (String imagePath, String statKey, VoidCallback onPressed) {
+  Widget actionButton (String imagePath, String statKey, VoidCallback onPressed) {
     return GestureDetector(
       onTap: () {
-        if (selectedPlayer != null) {
-          updateStat(selectedPlayer!, statKey);
+        if (selectedPlayerId != null) {
+          updateStat(selectedPlayerId!, statKey);
         }
         onPressed();
       },
@@ -502,22 +425,65 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 
-  // Widget SubstitutionButton(String imagePath, VoidCallback onPressed) {
-  //   return GestureDetector(
-  //     onTap: () {
-  //       onPressed(); // Mantém o callback original
-  //     },
-  //     child: Container(
-  //       decoration: BoxDecoration(
-  //         shape: BoxShape.circle,
-  //         image: DecorationImage(image: AssetImage(imagePath)),
-  //         border: Border.all(color: Colors.yellow, width: 1)
-  //       ),
-  //     ),
-  //   );
-  // }
+  void substitution(Map<String, dynamic> enteringPlayer) {
+    setState(() {
+      if (selectedTeam == 1) {
+        final index = widget.startersTeam1.indexWhere(
+              (player) => player['id_player'] == selectedPlayerId,
+        );
+        print("INDEX : $index");
+        if (index != -1) {
+          widget.startersTeam1[index] = enteringPlayer;
+        }
+      } else if (selectedTeam == 2) {
+        final index = widget.startersTeam2.indexWhere(
+              (player) => player['id_player'] == selectedPlayerId,
+        );
+        if (index != -1) {
+          widget.startersTeam2[index] = enteringPlayer;
+        }
+      }
+    });
 
-  Widget OptionsButton (String imagePath, VoidCallback onPressed) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("${enteringPlayer['playerName']} is in the court!")),
+    );
+  }
+
+  void addActionToPlayer(String action) {
+    setState(() {
+      if (selectedTeam == 1 && selectedPlayerId != null) {
+        team1Actions.insert(0, "$action\n${selectedPlayerJerseyNumber!}");
+        Future.delayed(Duration(milliseconds: 100), () {
+          _team1ScrollController.animateTo(
+            0.0,
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        });
+      } else if (selectedTeam == 2 && selectedPlayerId != null) {
+        team2Actions.insert(0, "$action\n${selectedPlayerJerseyNumber!}");
+        Future.delayed(Duration(milliseconds: 100), () {
+          _team2ScrollController.animateTo(
+            0.0,
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        });
+      }
+    });
+  }
+
+  void updatePoints(int team, int points){
+    team = selectedTeam!;
+    if (team == 1){
+      teamOneScore += points;
+    } else {
+      teamTwoScore += points;
+    }
+  }
+
+  Widget optionsButton (String imagePath, VoidCallback onPressed) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -532,25 +498,36 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   void showExtraMenu() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.black.withOpacity(0.8),
       builder: (BuildContext context) {
         return Container(
-          padding: EdgeInsets.all(5),
+          padding: EdgeInsets.all(10),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.abc),
-                title: Text("Legend"),
-                onTap: () => Navigator.pop(context),
+                leading: Icon(Icons.menu_book, color: Colors.white),
+                title: Text("Legend", style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (_) => Dialog(
+                      backgroundColor: Colors.black.withOpacity(0.6),
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        child: Image.asset(
+                          'assets/images/LegendsImage.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
               ListTile(
-                leading: Icon(Icons.add_chart),
-                title: Text("Actual Stats"),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: Icon(Icons.ac_unit),
-                title: Text("Finish Match"),
+                leading: Icon(Icons.flag, color: Colors.white),
+                title: Text("Finish Match", style: TextStyle(color: Colors.white)),
                 onTap: () => finishMatch(),
               ),
               ListTile(
@@ -560,11 +537,32 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                   style: TextStyle(color: Colors.red),
                 ),
                 onTap: () {
-                  Navigator.pop(context); // Fecha o bottom sheet
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => MainScreen()),
-                        (Route<dynamic> route) => false,
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text("Are you sure?"),
+                        content: Text("All unsaved stats will be lost."),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text("Cancel"),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (context) => MainScreen()),
+                                    (Route<dynamic> route) => false,
+                              );
+                            },
+                            child: Text("Exit", style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
@@ -574,7 +572,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       },
     );
   }
-
 
 
 
@@ -619,30 +616,29 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                 padding: EdgeInsets.zero,
                 childAspectRatio: 1.5,
                 children: [
-                  ScoreButton('assets/images/1PointActionIcon.png', "one_pointer", () => addActionToPlayer("1 Point Made"), 1),
-                  ScoreButton('assets/images/2PointActionIcon.png', "two_pointer", () => addActionToPlayer("2 Point Made"), 2),
-                  ScoreButton('assets/images/3PointActionIcon.png', "three_pointer", () => addActionToPlayer("3 Point Made"), 3),
-                  ActionButton('assets/images/1PointMissedActionIcon.png', "missed_one_pointer", () => addActionToPlayer("1 Point Missed")),
-                  ActionButton('assets/images/2PointMissedActionIcon.png', "missed_two_pointer", () => addActionToPlayer("2 Point Missed")),
-                  ActionButton('assets/images/3PointMissedActionIcon.png', "missed_three_pointer", () => addActionToPlayer("3 Point Missed")),
-                  ActionButton('assets/images/AssistActionIcon.png', "assist", () => addActionToPlayer("Assist")),
-                  ActionButton('assets/images/BlockActionIcon.png', "block", () => addActionToPlayer("Block")),
-                  ActionButton('assets/images/StealActionIcon.png', "steal", () => addActionToPlayer("Steal")),
-                  ActionButton('assets/images/OffensiveReboundActionIcon.png', "offensive_rebound", () => addActionToPlayer("O. Rebound")),
-                  ActionButton('assets/images/DefensiveReboundActionIcon.png', "defensive_rebound", () => addActionToPlayer("D. Rebound")),
-                  ActionButton('assets/images/TurnOverActionIcon.png', "turnover", () => addActionToPlayer("Turnover")),
-                  ActionButton('assets/images/FoulActionIcon.png', "foul", () => addActionToPlayer("Foul")),
-                  OptionsButton('assets/images/OptionsIcon.png', showExtraMenu),
-                  SubstitutionButton(
+                  scoreButton('assets/images/1PointActionIcon.png', "one_pointer", () => addActionToPlayer("1 Point Made"), 1),
+                  scoreButton('assets/images/2PointActionIcon.png', "two_pointer", () => addActionToPlayer("2 Point Made"), 2),
+                  scoreButton('assets/images/3PointActionIcon.png', "three_pointer", () => addActionToPlayer("3 Point Made"), 3),
+                  actionButton('assets/images/1PointMissedActionIcon.png', "missed_one_pointer", () => addActionToPlayer("1 Point Missed")),
+                  actionButton('assets/images/2PointMissedActionIcon.png', "missed_two_pointer", () => addActionToPlayer("2 Point Missed")),
+                  actionButton('assets/images/3PointMissedActionIcon.png', "missed_three_pointer", () => addActionToPlayer("3 Point Missed")),
+                  actionButton('assets/images/AssistActionIcon.png', "assist", () => addActionToPlayer("Assist")),
+                  actionButton('assets/images/BlockActionIcon.png', "block", () => addActionToPlayer("Block")),
+                  actionButton('assets/images/StealActionIcon.png', "steal", () => addActionToPlayer("Steal")),
+                  actionButton('assets/images/OffensiveReboundActionIcon.png', "offensive_rebound", () => addActionToPlayer("O. Rebound")),
+                  actionButton('assets/images/DefensiveReboundActionIcon.png', "defensive_rebound", () => addActionToPlayer("D. Rebound")),
+                  actionButton('assets/images/TurnOverActionIcon.png', "turnover", () => addActionToPlayer("Turnover")),
+                  actionButton('assets/images/FoulActionIcon.png', "foul", () => addActionToPlayer("Foul")),
+                  optionsButton('assets/images/OptionsIcon.png', showExtraMenu),
+                  substitutionButton(
                     imagePath: 'assets/images/SubstitutionActionIcon.png',
-                    teamId: 1, // Id do time que está substituindo
+                    teamId: selectedTeam == 1 ? widget.team1["id"] : widget.team2["id"],
                     context: context,
                     onPlayerSelected: (player) {
-                      // Lógica após selecionar um jogador
-                      print("Jogador selecionado para substituição: ${player['name']}");
-                      // Aqui você pode chamar uma função de substituição
+                      substitution(player);
                     },
-                  ),                ],
+                  )
+                ],
               ),
             ),
           ],
@@ -696,12 +692,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
               widget.gameMode == "5x5" ? 5 : widget.gameMode == "3x3" ? 3 : 1,
                   (index) {
                 int jerseyNumber = starters[index]['jerseyNumber'];
-                bool isSelected = selectedPlayer == jerseyNumber && selectedTeam == teamNumber;
-
+                int playerId = starters[index]['id_player'];
+                bool isSelected = selectedPlayerId == playerId && selectedTeam == teamNumber;
                 return GestureDetector(
                   onTap: () {
+                    print("Id: $playerId\nJersey Number: $jerseyNumber");
                     setState(() {
-                      selectedPlayer = jerseyNumber;
+                      selectedPlayerId = playerId;
+                      selectedPlayerJerseyNumber = jerseyNumber;
                       selectedTeam = teamNumber;
                     });
                   },
@@ -766,24 +764,19 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         final isMobile = constraints.maxWidth < 800;
 
         if (isMobile) {
-          // LAYOUT VERTICAL (Celulares)
           return Scaffold(
             body: Column(
               children: [
-                // TIME 1
                 Expanded(child: buildTeamColumn(widget.team1, widget.startersTeam1, team1Actions, _team1ScrollController, 1)),
-                // CENTRAL DE AÇÕES
                 SizedBox(
                   height: 350,
                   child: buildActionCenter(isMobile),
                 ),
-                // TIME 2
                 Expanded(child: buildTeamColumn(widget.team2, widget.startersTeam2, team2Actions, _team2ScrollController, 2)),
               ],
             ),
           );
         } else {
-          // LAYOUT HORIZONTAL (Tablet, Desktop)
           return Scaffold(
             body: Row(
               children: [

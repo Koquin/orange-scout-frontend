@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'gameScreen.dart';
@@ -23,6 +24,10 @@ class SelectTeamsNStarters extends StatefulWidget {
 }
 
 class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
+  //Other variables
   List<dynamic> teams = [];
   int team1Index = 0;
   int team2Index = 1;
@@ -56,7 +61,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     }
 
     final response = await http.get(
-      Uri.parse(endPointTeam),
+      Uri.parse("$baseUrl/team"),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -66,7 +71,6 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     if (response.statusCode == 200) {
       setState(() {
         teams = jsonDecode(response.body);
-        print(teams);
       });
 
       if (teams.length >= 2) {
@@ -79,11 +83,10 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
   Future<void> fetchPlayers(int teamId, {required bool isTeam1}) async {
     String? token = await loadToken();
     if (token == null) {
-      print("Error: Token is null");
       return;
     }
     final response = await http.get(
-      Uri.parse('$endPointPlayer/team-players/$teamId'),
+      Uri.parse('$baseUrl/player/team-players/$teamId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -106,9 +109,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
 
   void startGame() {
     Map<int, Map<String, int>> playerStats = {};
-    print("Team 1: ${teams[team1Index]}, Team 2: ${teams[team2Index]}");
     for (var player in selectedPlayersTeam1 + selectedPlayersTeam2) {
-      print(player);
       playerStats[player['id_player']] = {
         "three_pointer": 0,
         "two_pointer": 0,
@@ -149,37 +150,100 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(8.0),
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.85),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 15.0,
+                spreadRadius: 3.0,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("Select player", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Divider(),
+              Container(
+                height: 4,
+                width: 40,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white54,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                "Select Player",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFFFCC80),
+                ),
+              ),
+              const Divider(color: Colors.white38, height: 24),
               Expanded(
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: availablePlayers.length,
                   itemBuilder: (context, i) {
-                    return ListTile(
-                      title: Text(availablePlayers[i]['playerName'] ?? "Unknown player"),
-                      subtitle: Text("Jersey: ${availablePlayers[i]['jerseyNumber']?.toString() ?? '-'}"),
-                      onTap: () {
-                        setState(() {
-                          if (isTeam1) {
-                            selectedPlayersTeam1[index] = availablePlayers[i];
-                          } else {
-                            selectedPlayersTeam2[index] = availablePlayers[i];
-                          }
-                        });
-                        Navigator.pop(context);
-                      },
+                    final player = availablePlayers[i];
+                    return Card(
+                      color: Colors.white.withOpacity(0.08),
+                      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: Color(0xFFFF4500),
+                          child: Text(
+                            player['jerseyNumber']?.toString() ?? '?',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text(
+                          player['playerName'] ?? "Unknown player",
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: Text(
+                          "Jersey: ${player['jerseyNumber']?.toString() ?? '-'}",
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        onTap: () {
+                          setState(() {
+                            if (isTeam1) {
+                              selectedPlayersTeam1[index] = player;
+                            } else {
+                              selectedPlayersTeam2[index] = player;
+                            }
+                          });
+                          Navigator.pop(context);
+                        },
+                      ),
                     );
                   },
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF84442E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text("Cancel", style: TextStyle(fontSize: 16)),
                 ),
               ),
             ],
@@ -238,10 +302,9 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                           fit: BoxFit.cover,
                         );
                       } else {
-                        throw FileSystemException(); // força cair no catch se o caminho não existir
+                        throw FileSystemException();
                       }
                     } catch (e) {
-                      // Exibe a imagem padrão caso ocorra algum erro ao carregar a imagem do time
                       return Image.asset(
                         "assets/images/TeamShieldIcon-cutout.png",
                         width: 100,
@@ -276,8 +339,8 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
             (index) => GestureDetector(
           onTap: () => showPlayerSelectionDialog(index, isTeam1, availablePlayers),
           child: Container(
-            width: 60, // Largura fixa
-            height: 60, // Altura fixa
+            width: 60,
+            height: 60,
             margin: EdgeInsets.all(4),
             padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -292,7 +355,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                     ? (selectedPlayers[index]['jerseyNumber']?.toString() ?? '-')
                     : '-',
                 style: TextStyle(
-                  fontSize: 28, // Tamanho base, reduzido automaticamente pelo FittedBox
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),

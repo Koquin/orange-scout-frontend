@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,12 +15,19 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
   List<Map<String, dynamic>> matches = [];
   bool isLoading = true;
   bool hasError = false;
 
   @override
   void initState() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     super.initState();
     fetchMatches();
   }
@@ -32,23 +40,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       isLoading = true;
       hasError = false;
     });
-
-    print("chegou na requisição");
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.18.31:8080/match/user'),
+        Uri.parse('$baseUrl/match/user'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );
-    print(token);
-    print("passou da requisição de matches");
     print(response.statusCode);
       if (response.statusCode == 200){
-        print("entrou no if statusCode == 200 do fetchMatches");
         List<dynamic> data = jsonDecode(response.body);
-        print("Dados puxados: $data");
         setState(() {
           matches = data.map((match) => {
             'id': match['idMatch'],
@@ -60,7 +62,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
             'team2Logo': match['teamTwo']['logoPath'],
             'location': match['location_id'],
           }).toList();
-          print(matches);
           isLoading = false;
         });
       } else {
@@ -77,11 +78,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  /// **Abre a localização da partida específica no Google Maps**
   Future<void> _openMatchLocation(String matchId) async {
     String? token = await loadToken();
     final response = await http.get(
-      Uri.parse('http://192.168.18.31/match/matchLocation/$matchId'),
+      Uri.parse('$baseUrl/match/matchLocation/$matchId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -97,18 +97,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
         await launchUrl(Uri.parse(googleMapsUrl));
       } else {
-        print("Erro ao abrir o Google Maps");
+        print("Error opening google maps");
       }
     } else {
-      print("Erro ao buscar localização da partida");
+      print("Error locating the match");
     }
   }
 
-  /// **Abre todas as localizações no Google Maps**
   Future<void> _openAllLocations() async {
     String? token = await loadToken();
     final response = await http.get(
-      Uri.parse('http://192.168.18.31:8080/match/locations'),
+      Uri.parse('$baseUrl/match/locations'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -118,27 +117,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (response.statusCode == 200) {
       final List<dynamic> locations = jsonDecode(response.body);
       if (locations.isEmpty) {
-        print("Nenhuma localização disponível.");
         return;
       }
 
       if (locations.length == 1) {
-        // Caso tenha apenas 1 ponto, usamos apenas `destination`
         final singleLocation = "${locations[0]['latitude']},${locations[0]['longitude']}";
         final googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=$singleLocation";
 
         if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
           await launchUrl(Uri.parse(googleMapsUrl));
         } else {
-          print("Erro ao abrir o Google Maps");
+          print("Erro opening google maps");
         }
         return;
       }
 
-      // O primeiro ponto vai no `destination`
       String destination = "${locations[0]['latitude']},${locations[0]['longitude']}";
 
-      // Os outros vão como `waypoints`, separados por `|`
       String waypoints = locations
           .skip(1)
           .map((loc) => "${loc['latitude']},${loc['longitude']}")
@@ -150,10 +145,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
         await launchUrl(Uri.parse(googleMapsUrl));
       } else {
-        print("Erro ao abrir o Google Maps");
+        print("Error opening google maps");
       }
     } else {
-      print("Erro ao buscar todas as localizações");
+      print("Error fetching all locations");
     }
   }
 

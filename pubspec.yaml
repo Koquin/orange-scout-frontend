@@ -11,12 +11,15 @@ dependencies:
   flutter_screenutil: ^5.9.1
   flutter:
     sdk: flutter
+  firebase_core: ^3.13.1
+  firebase_analytics: ^11.4.6
   cupertino_icons: ^1.0.8
+  flutter_dotenv: ^5.0.2
   http: ^1.3.0
-  geolocator: ^13.0.2 # para a geolocalizacao
-  geocoding: ^3.0.0 # para a geolocalizacao
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
   google_maps_flutter: ^2.5.0
-  shared_preferences: ^2.5.1 #para o token
+  shared_preferences: ^2.5.1
   url_launcher: ^6.2.2
   image_picker: ^1.0.4
 dev_dependencies:
@@ -27,6 +30,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/images/LegendsImage.png
+    - assets/images/Legends.png
     - assets/images/3PointActionIcon.png
     - assets/images/2PointActionIcon.png
     - assets/images/1PointActionIcon.png
@@ -64,6 +69,7 @@ flutter:
     - assets/images/FinishIcon.png
     - assets/images/AddTeamIcon.png
     - assets/images/UploadImageIcon.png
+    - .env
 fonts:
   - family: Inter
     fonts:

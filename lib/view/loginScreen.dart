@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:OrangeScoutFE/util/token_utils.dart';
-import 'registerScreen.dart'; // Importa a tela de registro
+import 'registerScreen.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,11 +15,30 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
-  final Uri url = Uri.parse('http://192.168.18.31:8080/auth/login');
 
+  @override
+  void initState() {
+    super.initState();
+    // Log de visualização de tela quando o usuário ENTRA nesta tela
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirebaseAnalytics.instance.logScreenView(
+        screenName: 'LoginScreen',
+        screenClass: 'LoginScreenState',
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
     final String email = _emailController.text.trim();
@@ -29,17 +50,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please fill in all fields')),
+        const SnackBar(content: Text('Please fill in all fields')),
       );
       setState(() {
         _isLoading = false;
       });
+      // Log de tentativa de login falha (campos vazios)
+      FirebaseAnalytics.instance.logEvent(
+        name: 'login_attempt',
+        parameters: {
+          'status': 'failed',
+          'reason': 'empty_fields',
+          'email_provided': email.isNotEmpty,
+          'password_provided': password.isNotEmpty,
+        },
+      );
       return;
     }
 
     try {
       final response = await http.post(
-        url,
+        Uri.parse("$baseUrl/auth/login"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
@@ -48,19 +79,44 @@ class _LoginScreenState extends State<LoginScreen> {
         final responseData = jsonDecode(response.body);
         String? token = responseData['token'];
         if (token == null || token.isEmpty) {
-          throw Exception("Token not found");
+          throw Exception("Token not found in response");
         }
         saveToken(token);
-        print('Token salvo no login: $token');
         Navigator.pushReplacementNamed(context, '/main');
+
+        // Log de login bem-sucedido
+        FirebaseAnalytics.instance.logEvent(
+          name: 'login_attempt',
+          parameters: {
+            'status': 'success',
+          },
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid credentials')),
+          const SnackBar(content: Text('Invalid credentials')),
+        );
+        // Log de tentativa de login falha (credenciais inválidas)
+        FirebaseAnalytics.instance.logEvent(
+          name: 'login_attempt',
+          parameters: {
+            'status': 'failed',
+            'reason': 'invalid_credentials',
+            'http_status_code': response.statusCode,
+          },
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error connecting to the server')),
+        SnackBar(content: Text('Error connecting to the server: ${e.toString()}')),
+      );
+      // Log de tentativa de login falha (erro de conexão)
+      FirebaseAnalytics.instance.logEvent(
+        name: 'login_attempt',
+        parameters: {
+          'status': 'failed',
+          'reason': 'connection_error',
+          'error_details': e.toString(),
+        },
       );
     }
 
@@ -74,18 +130,18 @@ class _LoginScreenState extends State<LoginScreen> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Color(0xFFFF9800),
-        padding: EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+        backgroundColor: const Color(0xFFFF9800),
+        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
         elevation: 5,
       ),
       child: _isLoading
-          ? CircularProgressIndicator(color: Colors.white)
+          ? const CircularProgressIndicator(color: Colors.white)
           : Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           color: Colors.white,
           fontSize: 20,
           fontWeight: FontWeight.bold,
@@ -106,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Container(
           width: double.infinity,
           height: double.infinity,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: RadialGradient(
               center: Alignment.center,
               radius: 1.0,
@@ -122,56 +178,60 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset('assets/images/OrangeScoutLogo.png'),
-              SizedBox(height: 40),
+              const SizedBox(height: 40),
               SizedBox(
                 height: 40,
-                width: 500,
+                width: MediaQuery.of(context).size.width * 0.8,
                 child: TextField(
                   controller: _emailController,
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Color(0xFFF57C00),
+                    fillColor: const Color(0xFFF57C00),
                     hintText: "Email",
-                    hintStyle: TextStyle(color: Color(0xFFFFCC80)),
+                    hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: EdgeInsets.symmetric(vertical: 5, horizontal: 15),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
                   ),
                 ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               SizedBox(
                 height: 40,
-                width: 500,
+                width: MediaQuery.of(context).size.width * 0.8,
                 child: TextField(
                   controller: _passwordController,
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                   obscureText: true,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Color(0xFFF57C00),
+                    fillColor: const Color(0xFFF57C00),
                     hintText: "Password",
-                    hintStyle: TextStyle(color: Color(0xFFFFCC80)),
+                    hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: EdgeInsets.symmetric(vertical: 5, horizontal: 15),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
                   ),
                 ),
               ),
 
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               customButton(
                 text: "Login",
                 onPressed: _isLoading ? () {} : _login,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               GestureDetector(
                 onTap: () {
+                  // Log de clique no link para registro
+                  FirebaseAnalytics.instance.logEvent(
+                    name: 'navigate_to_register_clicked',
+                  );
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => RegisterScreen()),
                   );
                 },
-                child: Text(
+                child: const Text(
                   "I don't have an account",
                   style: TextStyle(
                     color: Colors.blue,

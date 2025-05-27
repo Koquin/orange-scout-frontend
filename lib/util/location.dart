@@ -42,41 +42,30 @@ Future<Map<String, dynamic>?> getCurrentLocation() async {
 Future<String?> getPlaceName(double latitude, double longitude) async {
   try {
     List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
-    print("Place marks: $placemarks");
-
     if (placemarks.isNotEmpty) {
       final placemark = placemarks.first;
-      print("📍 Placemark completo: $placemark");
-
-      // 1. Tenta pegar o nome do local (POI)
       if (placemark.name != null && placemark.name!.isNotEmpty) {
-        print("✔️ Usando POI (name): ${placemark.name}");
         return placemark.name;
       }
 
-      // 2. Fallbacks:
       if (placemark.locality != null && placemark.locality!.isNotEmpty) {
-        print("✔️ Usando cidade (locality): ${placemark.locality}");
         return placemark.locality;
       }
 
       if (placemark.subLocality != null && placemark.subLocality!.isNotEmpty) {
-        print("✔️ Usando bairro (subLocality): ${placemark.subLocality}");
         return placemark.subLocality;
       }
 
       if (placemark.thoroughfare != null && placemark.thoroughfare!.isNotEmpty) {
-        print("✔️ Usando rua (thoroughfare): ${placemark.thoroughfare}");
         return placemark.thoroughfare;
       }
 
       if (placemark.administrativeArea != null && placemark.administrativeArea!.isNotEmpty) {
-        print("✔️ Usando estado (administrativeArea): ${placemark.administrativeArea}");
         return placemark.administrativeArea;
       }
     }
   } catch (e) {
-    print('❌ Erro ao buscar nome do local: $e');
+    print('Error fetching location name: $e');
   }
   return null;
 }

@@ -33,9 +33,9 @@ class _MapScreenState extends State<MapScreen> {
 
         markers: {
           Marker(
-            markerId: MarkerId('match_location'),//nome do atributo da match que é passado
+            markerId: MarkerId('match_location'),
             position: LatLng(widget.latitude, widget.longitude),
-            infoWindow: InfoWindow(title: 'Partida'), //nome do marcador
+            infoWindow: InfoWindow(title: 'Match'),
           ),
         },
       ),

@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../util/token_utils.dart';
@@ -14,14 +16,18 @@ class TeamsScreen extends StatefulWidget {
 }
 
 class _TeamsScreenState extends State<TeamsScreen> {
+  String? baseUrl = dotenv.env['API_BASE_URL'];
   List<dynamic> teams = [];
   bool isLoading = true;
 
-  final String apiUrl = "http://192.168.18.31:8080/team";
   final String fallbackImage = "assets/images/TeamShieldIcon-cutout.png";
 
   @override
   void initState() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     super.initState();
     fetchTeams();
   }
@@ -30,7 +36,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     String? token = await loadToken();
     try {
       final response = await http.get(
-        Uri.parse(apiUrl),
+        Uri.parse("$baseUrl/team"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token"
@@ -44,10 +50,26 @@ class _TeamsScreenState extends State<TeamsScreen> {
           isLoading = false;
         });
       } else {
-        print("Erro ao buscar times: ${response.statusCode}");
+        print("Error fetching teams: ${response.statusCode}");
       }
     } catch (e) {
-      print("Erro de requisição: $e");
+      print("Requisition error: $e");
+    }
+  }
+
+  void _editTeam(int teamId) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditTeamScreen(teamId: teamId)),
+    );
+
+    if (result == true) {
+      fetchTeams();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Team list refreshed!")),
+        );
+      }
     }
   }
 
@@ -88,13 +110,21 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 teamName.length > 20 ? abbreviation : teamName;
 
                 return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
+                  onTap: () async {
+                    final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (_) =>
                               EditTeamScreen(teamId: team["id"])),
                     );
+                    if (result == true) {
+                      fetchTeams();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Team list refreshed!")), // User feedback
+                        );
+                      }
+                    }
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -139,11 +169,19 @@ class _TeamsScreenState extends State<TeamsScreen> {
             right: 5,
             child: IconButton(
               icon: Image.asset('assets/images/AddTeamIcon.png', width: 40, height: 40),
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => CreateTeamScreen()),
+                  MaterialPageRoute(builder: (_) => CreateTeamScreen(teamId: null)),
                 );
+                if (result == true) {
+                  fetchTeams();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Team list refreshed!")),
+                    );
+                  }
+                }
               },
             ),
           ),

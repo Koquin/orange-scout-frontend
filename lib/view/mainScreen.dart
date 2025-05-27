@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:OrangeScoutFE/view/teamsScreen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'selectGameScreen.dart';
 import 'historyScreen.dart';
 import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'loginScreen.dart';
 import 'package:OrangeScoutFE/controller/match_controller.dart';
 import 'gameScreen.dart';
+import 'package:flutter/services.dart';
+
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -15,13 +18,21 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
   int _selectedIndex = 0;
   Widget? _overlayPage;
 
   @override
   void initState() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     super.initState();
     _checkLastMatchIfExists();
+
   }
 
   Future<void> _checkLastMatchIfExists() async {
@@ -30,13 +41,11 @@ class _MainScreenState extends State<MainScreen> {
 
     Map<String, dynamic>? lastMatch = await checkLastMatch();
     if (lastMatch != null) {
-      print("Last match: $lastMatch");
       _showLastMatchDialog(lastMatch);
     }
   }
 
   void _showLastMatchDialog(Map<String, dynamic> lastMatch) {
-    print("Last match como Map<String, dynamic>: $lastMatch");
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -113,9 +122,9 @@ class _MainScreenState extends State<MainScreen> {
       case 0:
         return SelectGameScreen(onNavigate: _navigateToOverlay);
       case 1:
-        return TeamsScreen(); // Será recarregado toda vez que for clicado
+        return TeamsScreen();
       case 2:
-        return HistoryScreen(); // Também será recarregado
+        return HistoryScreen();
       default:
         return Container();
     }
@@ -125,6 +134,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         centerTitle: true,
         title: const Text("Orange Scout", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF3b2f2f),

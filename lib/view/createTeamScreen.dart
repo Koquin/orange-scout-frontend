@@ -1,25 +1,35 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:firebase_analytics/firebase_analytics.dart';
 import '../util/token_utils.dart';
 
 class CreateTeamScreen extends StatefulWidget {
-  const CreateTeamScreen({super.key});
 
   @override
   _CreateTeamScreenState createState() => _CreateTeamScreenState();
+
+  final int? teamId;
+
+  const CreateTeamScreen({
+    super.key,
+    required this.teamId,
+  });
 }
 
 class _CreateTeamScreenState extends State<CreateTeamScreen> {
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
   final _formKey = GlobalKey<FormState>();
   final _teamNameController = TextEditingController();
   final _abbreviationController = TextEditingController();
 
-  String? _logoPath;
-  File? _selectedImage;
+  String? logoPath;
+  File? selectedImage;
   final String fallbackImage = 'assets/images/TeamShieldIcon-cutout.png';
 
   Future<void> _pickImage() async {
@@ -28,8 +38,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
 
     if (pickedFile != null) {
       setState(() {
-        _selectedImage = File(pickedFile.path);
-        _logoPath = pickedFile.path;
+        selectedImage = File(pickedFile.path);
+        logoPath = pickedFile.path;
       });
     }
   }
@@ -40,24 +50,25 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     final teamName = _teamNameController.text.trim();
     final abbreviation = _abbreviationController.text.trim();
 
-    if (_logoPath == null || _logoPath!.isEmpty) {
+    if (logoPath == null || logoPath!.isEmpty) {
+      logoPath = fallbackImage;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error: Team Shield not valid")),
+        const SnackBar(content: Text("No valid image found, using default.")),
       );
-      return;
     }
 
     String? token = await loadToken();
 
     final teamData = {
+      "id": widget.teamId,
       "teamName": teamName,
       "abbreviation": abbreviation,
-      "logoPath": _logoPath,
+      "logoPath": logoPath,
     };
 
     try {
       final response = await http.post(
-        Uri.parse("http://192.168.18.31:8080/team"),
+        Uri.parse("$baseUrl/team"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",
@@ -66,7 +77,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       );
 
       if (response.statusCode == 201) {
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error creating team: ${response.statusCode}")),
@@ -174,8 +185,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: _selectedImage != null
-                        ? Image.file(_selectedImage!, fit: BoxFit.cover)
+                    child: selectedImage != null
+                        ? Image.file(selectedImage!, fit: BoxFit.cover)
                         : Image.asset(fallbackImage, fit: BoxFit.cover),
                   ),
                 ),

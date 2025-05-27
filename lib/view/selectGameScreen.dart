@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'selectTeamsNStarters.dart';
 import 'package:OrangeScoutFE/util/persistent_snackBar.dart';
 import 'package:OrangeScoutFE/util/checks.dart';
@@ -14,6 +15,8 @@ class SelectGameScreen extends StatefulWidget {
 
 class _SelectGameScreenState extends State<SelectGameScreen> {
   String _pressedMode = "";
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
 
   Future<void> _handleNavigation(String gameMode) async {
     bool isValidated = await checkUserValidation();

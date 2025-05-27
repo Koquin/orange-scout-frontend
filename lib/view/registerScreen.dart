@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'loginScreen.dart';
@@ -12,6 +13,9 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  //Base url
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -36,7 +40,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final Uri url = Uri.parse('http://192.168.18.31:8080/auth/register');
+    final Uri url = Uri.parse('$baseUrl/auth/register');
 
     try {
       final response = await http.post(
@@ -48,8 +52,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'password': password,
         }),
       );
-
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Account created! You can now log in.')),
         );
@@ -129,10 +132,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/OrangeScoutLogo-cutout-cutout.png'),
+              Image.asset('assets/images/OrangeScoutLogo.png'),
               SizedBox(height: 40),
               SizedBox(
-                height: 40, // Define a altura do campo
+                height: 40,
                 width: 650,
                 child: TextField(
                   controller: _usernameController,
@@ -147,9 +150,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              SizedBox(height: 10), // Espaço entre os campos
+              SizedBox(height: 10),
               SizedBox(
-                height: 40, // Define a altura do campo
+                height: 40,
                 width: 650,
                 child: TextField(
                   controller: _emailController,
@@ -164,9 +167,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              SizedBox(height: 10), // Espaço entre os campos
+              SizedBox(height: 10),
               SizedBox(
-                height: 40, // Define a altura do campo
+                height: 40,
                 width: 650,
                 child: TextField(
                   controller: _passwordController,

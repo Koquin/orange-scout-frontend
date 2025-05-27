@@ -1,68 +1,188 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:OrangeScoutFE/util/token_utils.dart';
-import 'mainScreen.dart';
+import 'package:OrangeScoutFE/view/mainScreen.dart';
 
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
 
   @override
-  _VerificationScreenState createState() => _VerificationScreenState();
+  VerificationScreenState createState() => VerificationScreenState();
 }
 
-class _VerificationScreenState extends State<VerificationScreen> {
+class VerificationScreenState extends State<VerificationScreen> {
+  bool _isLoading = false;
   final TextEditingController _codeController = TextEditingController();
+  String? baseUrl = dotenv.env['API_BASE_URL'];
+
+  final Duration _cooldownDuration = const Duration(minutes: 1);
+  DateTime? _lastSentTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCooldownStatus();
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  bool get _isCooldownActive {
+    if (_lastSentTime == null) {
+      return false;
+    }
+    return DateTime.now().difference(_lastSentTime!) < _cooldownDuration;
+  }
+
+  void _checkCooldownStatus() {
+    setState(() {
+    });
+    if (_isCooldownActive) {
+      final timeRemaining = _cooldownDuration - DateTime.now().difference(_lastSentTime!);
+      Future.delayed(timeRemaining, () {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
+  }
+
 
   Future<void> validateCode() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     String? token = await loadToken();
-    final response = await http.post(
-      Uri.parse('http://192.168.18.31:8080/user/validate'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'code': _codeController.text}),
-    );
 
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code validated!')),
+    if (token == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Token not found.')),
+        );
+      }
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/validate'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'code': _codeController.text}),
       );
 
-      // Redireciona para a tela principal (substitua 'HomeScreen' pela tela correta)
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => MainScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid code!')),
-      );
+      if (mounted) {
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Code validated successfully!')),
+          );
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => MainScreen()),
+                (Route<dynamic> route) => false,
+          );
+        } else {
+          String errorMessage = 'Failed to validate code! Status: ${response.statusCode}';
+          if (response.body.isNotEmpty) {
+            print('Server response: ${response.body}');
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection error: $e')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
 
   Future<void> sendVerificationCode() async {
-    String? token = await loadToken(); // Carrega o token salvo
+    if (_isCooldownActive) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please wait before resending the code.')),
+        );
+      }
+      return;
+    }
 
-    final response = await http.post(
-      Uri.parse('http://192.168.18.31:8080/user/sendValidationCode'),
-      headers: {
-        'Authorization': 'Bearer $token', // Adiciona o token
-        'Content-Type': 'application/json',
-      },
-    );
+    setState(() {
+      _isLoading = true;
+    });
 
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code sent!')),
+    String? token = await loadToken();
+
+    if (token == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Token not found.')),
+        );
+      }
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/sendValidationCode'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to send code!')),
-      );
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Code sent successfully!')),
+          );
+          _lastSentTime = DateTime.now();
+          _checkCooldownStatus();
+        } else {
+          String errorMessage = 'Failed sending code: ${response.statusCode}';
+          if (response.body.isNotEmpty) {
+            print('Server response: ${response.body}');
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection error: $e')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -95,7 +215,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               const SizedBox(height: 40),
               SizedBox(
                 height: 40,
-                width: MediaQuery.of(context).size.width * 0.8, // Responsivo
+                width: MediaQuery.of(context).size.width * 0.8,
                 child: TextField(
                   controller: _codeController,
                   style: const TextStyle(color: Colors.white),
@@ -111,17 +231,51 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: validateCode,
-                child: const Text('Validate'),
+                onPressed: _isLoading ? null : validateCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                ),
+                child: _isLoading && _codeController.text.isEmpty
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.0,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  'Validate',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(height: 15),
               TextButton(
-                onPressed: sendVerificationCode,
-                child: const Text(
+                onPressed: (_isLoading || _isCooldownActive) ? null : sendVerificationCode,
+                child: _isLoading
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.0,
+                    color: Colors.blue,
+                  ),
+                )
+                    : const Text(
                   'Send verification code',
                   style: TextStyle(decoration: TextDecoration.underline, color: Colors.blue),
                 ),
               ),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0),
+                  child: Text('Sending...', style: TextStyle(color: Colors.grey)),
+                ),
             ],
           ),
         ),
