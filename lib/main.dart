@@ -1,32 +1,53 @@
 import 'package:OrangeScoutFE/view/createTeamScreen.dart';
 import 'package:flutter/material.dart';
-import 'view/mainScreen.dart';
-import 'view/historyScreen.dart';
-import 'view/registerScreen.dart';
-import 'view/loginScreen.dart';
-import 'view/verificationScreen.dart';
-import 'package:OrangeScoutFE/util/checks.dart';
+import 'package:flutter/foundation.dart';
+import 'package:OrangeScoutFE/view/mainScreen.dart';
+import 'package:OrangeScoutFE/view/historyScreen.dart';
+import 'package:OrangeScoutFE/view/registerScreen.dart';
+import 'package:OrangeScoutFE/view/loginScreen.dart';
+import 'package:OrangeScoutFE/view/verificationScreen.dart';
 import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'dart:async';
+import 'package:OrangeScoutFE/controller/userController.dart';
+import 'package:OrangeScoutFE/controller/authController.dart';
+
 
 Future<void> main() async {
-  try {
-    await dotenv.load();
-  } catch (e) {
-    print('Erro ao carregar .env: $e');
-  }
   WidgetsFlutterBinding.ensureInitialized();
 
-  String? token = await loadToken();
-  bool expiredToken = token == null || await isTokenExpired(token);
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print('Error loading .env file: $e');
+  }
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  runApp(MyApp(expiredToken: expiredToken));
+  FlutterError.onError = (FlutterErrorDetails details) {
+    if (kDebugMode) {
+      FlutterError.dumpErrorToConsole(details);
+    }
+    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+  };
+
+  runZonedGuarded(() async {
+    final AuthController authController = AuthController();
+    String? token = await loadToken();
+    bool expiredToken = token == null || await authController.isTokenExpired(token);
+    runApp(MyApp(expiredToken: expiredToken));
+  }, (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    if (kDebugMode) {
+      print('Unhandled error caught by runZonedGuarded: $error');
+      print(stack);
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {

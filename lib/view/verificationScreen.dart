@@ -89,12 +89,7 @@ class VerificationScreenState extends State<VerificationScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Code validated successfully!')),
           );
-
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => MainScreen()),
-                (Route<dynamic> route) => false,
-          );
+          Navigator.popUntil(context, (route) => route.isFirst);
         } else {
           String errorMessage = 'Failed to validate code! Status: ${response.statusCode}';
           if (response.body.isNotEmpty) {

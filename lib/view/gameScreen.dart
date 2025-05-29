@@ -7,6 +7,7 @@ import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'package:OrangeScoutFE/util/location.dart';
 
 import 'mainScreen.dart';
+import 'package:firebase_analytics/firebase_analytics.dart'; // Importe FirebaseAnalytics
 
 class GameScreen extends StatefulWidget {
   @override
@@ -40,12 +41,11 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
-  //Base url
   String? baseUrl = dotenv.env['API_BASE_URL'];
 
   final ScrollController _team1ScrollController = ScrollController();
   final ScrollController _team2ScrollController = ScrollController();
-  int? selectedPlayerJerseyNumber;
+  String? selectedPlayerJerseyNumber;
   int? selectedPlayerId;
   int? selectedTeam;
   int? selectedTeamId;
@@ -64,8 +64,36 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+
+    FirebaseAnalytics.instance.logScreenView(
+      screenName: 'GameScreen',
+      screenClass: 'GameScreenState',
+      parameters: {'game_mode': widget.gameMode, 'match_id_initial': widget.matchId},
+    );
+
     teamOneScore = widget.teamOneScore;
     teamTwoScore = widget.teamTwoScore;
+    matchId = widget.matchId == 0 ? null : widget.matchId;
+
+    if (widget.playerStats.isNotEmpty) {
+      for (var statEntry in widget.playerStats) {
+        if (statEntry['playerId'] != null) {
+          playerStats[statEntry['playerId']] = Map<String, int>.from(statEntry);
+          playerStats[statEntry['playerId']]!['playerId'] = statEntry['playerId'];
+        }
+      }
+      FirebaseAnalytics.instance.logEvent(name: 'game_resumed', parameters: {'match_id': matchId});
+    } else {
+      for (var player in widget.startersTeam1 + widget.startersTeam2) {
+        playerStats[player['id_player']] = {
+          "id_player": player['id_player'],
+          "three_pointer": 0, "two_pointer": 0, "one_pointer": 0,
+          "missed_three_pointer": 0, "missed_two_pointer": 0, "missed_one_pointer": 0,
+          "steal": 0, "turnover": 0, "block": 0, "assist": 0,
+          "offensive_rebound": 0, "defensive_rebound": 0, "foul": 0,
+        };
+      }
+    }
   }
 
   Color getBorderColor(String action) {
@@ -113,12 +141,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         };
       }
       playerStats[idPlayer]![statKey] = (playerStats[idPlayer]![statKey] ?? 0) + 1;
+      FirebaseAnalytics.instance.logEvent( // Log de atualização de estatística
+        name: 'stat_updated',
+        parameters: {
+          'player_id': idPlayer,
+          'stat_key': statKey,
+          'new_value': playerStats[idPlayer]![statKey],
+          'game_mode': widget.gameMode,
+        },
+      );
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _team1ScrollController.dispose();
+    _team2ScrollController.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -128,114 +168,134 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       _hasSavedProgress = false;
     }
     if (state == AppLifecycleState.paused) {
+      print("Estado mudou, ${state}");
       await saveMatchProgress();
     }
   }
 
   void finishMatch() async {
+    FirebaseAnalytics.instance.logEvent(name: 'finish_match_button_pressed');
+
     String? token = await loadToken();
 
-    print("Stats: ${playerStats.entries}");
-    List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
-      final stats = entry.value;
-      return {
-        "matchId": null,
-        "statsId": null,
-        "playerId": stats["id_player"],
-        "three_pointer": stats["three_pointer"] ?? 0,
-        "two_pointer": stats["two_pointer"] ?? 0,
-        "one_pointer": stats["one_pointer"] ?? 0,
-        "missed_three_pointer": stats["missed_three_pointer"] ?? 0,
-        "missed_two_pointer": stats["missed_two_pointer"] ?? 0,
-        "missed_one_pointer": stats["missed_one_pointer"] ?? 0,
-        "steal": stats["steal"] ?? 0,
-        "turnover": stats["turnover"] ?? 0,
-        "block": stats["block"] ?? 0,
-        "assist": stats["assist"] ?? 0,
-        "offensive_rebound": stats["offensive_rebound"] ?? 0,
-        "defensive_rebound": stats["defensive_rebound"] ?? 0,
-        "foul": stats["foul"] ?? 0
-      };
-    }).toList();
+  print("Stats: ${playerStats.entries}");
+  List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
+    final stats = entry.value;
+    return {
+      "matchId": null,
+      "statsId": null,
+      "playerId": stats["id_player"],
+      "three_pointer": stats["three_pointer"] ?? 0,
+      "two_pointer": stats["two_pointer"] ?? 0,
+      "one_pointer": stats["one_pointer"] ?? 0,
+      "missed_three_pointer": stats["missed_three_pointer"] ?? 0,
+      "missed_two_pointer": stats["missed_two_pointer"] ?? 0,
+      "missed_one_pointer": stats["missed_one_pointer"] ?? 0,
+      "steal": stats["steal"] ?? 0,
+      "turnover": stats["turnover"] ?? 0,
+      "block": stats["block"] ?? 0,
+      "assist": stats["assist"] ?? 0,
+      "offensive_rebound": stats["offensive_rebound"] ?? 0,
+      "defensive_rebound": stats["defensive_rebound"] ?? 0,
+      "foul": stats["foul"] ?? 0
+    };
+  }).toList();
 
-    Map<String, dynamic>? locationData = await getCurrentLocation();
+    Map<String, dynamic>? locationData;
+    try {
+      locationData = await getCurrentLocation();
+      FirebaseAnalytics.instance.logEvent(name: 'location_fetched_for_match');
+    } catch (e) {
+      FirebaseAnalytics.instance.logEvent(name: 'location_fetch_failed', parameters: {'error': e.toString()});
+      print('Error getting location: $e');
+    }
+
     double? latitude = locationData?['latitude'];
     double? longitude = locationData?['longitude'];
     String? placeName = locationData?['placeName'];
 
-    Map<String, dynamic> matchData = {
-      "idMatch": matchId,
-      "userId": widget.userId,
-      "matchDate": DateTime.now().toIso8601String(),
-      "teamOneScore": teamOneScore,
-      "teamTwoScore": teamTwoScore,
-      "teamOne": {
-        "id": widget.team1["id"],
-        "teamName": widget.team1["teamName"],
-        "logoPath": widget.team1["logoPath"],
-        "abbreviation": widget.team1["abbreviation"]
-      },
-      "teamTwo": {
-        "id": widget.team2["id"],
-        "teamName": widget.team2["teamName"],
-        "logoPath": widget.team2["logoPath"],
-        "abbreviation": widget.team2["abbreviation"]
-      },
-      "stats": statsList,
-      "location": {
-        "latitude": latitude,
-        "longitude": longitude,
-        "placeName": placeName
-      },
-      "finished": true,
-      "gamemode": widget.gameMode,
-      "startersTeam1": widget.startersTeam1,
-      "startersTeam2": widget.startersTeam2
-    };
+  Map<String, dynamic> matchData = {
+    "idMatch": matchId,
+    "userId": widget.userId,
+    "matchDate": DateTime.now().toIso8601String(),
+    "teamOneScore": teamOneScore,
+    "teamTwoScore": teamTwoScore,
+    "teamOne": {
+      "id": widget.team1["id"],
+      "teamName": widget.team1["teamName"],
+      "logoPath": widget.team1["logoPath"],
+      "abbreviation": widget.team1["abbreviation"]
+    },
+    "teamTwo": {
+      "id": widget.team2["id"],
+      "teamName": widget.team2["teamName"],
+      "logoPath": widget.team2["logoPath"],
+      "abbreviation": widget.team2["abbreviation"]
+    },
+    "stats": statsList,
+    "location": {
+      "latitude": latitude,
+      "longitude": longitude,
+      "placeName": placeName
+    },
+    "finished": true,
+    "gamemode": widget.gameMode,
+    "startersTeam1": widget.startersTeam1,
+    "startersTeam2": widget.startersTeam2
+  };
 
     if (token == null) {
       print("Token is null!");
+      FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'token_null'});
       return;
     }
 
-    final response = await http.post(
-      Uri.parse("$baseUrl/match"),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer $token"
-      },
-      body: jsonEncode(matchData),
-    );
-    if (response.statusCode == 201) {
-      try {
-        final responseBody = jsonDecode(response.body);
-        final newMatchId = responseBody;
-        if (newMatchId != null) {
-          setState(() {
-            matchId = newMatchId;
-            print(matchId);
-          });
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => MainScreen()),
-          );
-        } else {
-          print("MatchId is not in the response.");
-        }
-      } catch (e) {
-        print('Error decoding answer or finding matchId: $e');
+  final response = await http.post(
+    Uri.parse("$baseUrl/match"),
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token"
+    },
+    body: jsonEncode(matchData),
+  );
+  if (response.statusCode == 201) {
+    try {
+      final responseBody = jsonDecode(response.body);
+      final newMatchId = responseBody;
+      if (newMatchId != null) {
+        setState(() {
+          matchId = newMatchId;
+          print(matchId);
+        });
+        FirebaseAnalytics.instance.logEvent(name: 'match_finished_successfully', parameters: {'match_id': matchId});
+        await Future.delayed(const Duration(seconds: 1, milliseconds: 50));
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => MainScreen()),
+              (Route<dynamic> route) => false,
+        );
+      } else {
+        print("MatchId is not in the response.");
+        FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'match_id_not_in_response'});
       }
-    } else {
-      print("Error finishing match: ${response.statusCode}");
+    } catch (e) {
+      print('Error decoding answer or finding matchId: $e');
+      FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'response_decode_error', 'error': e.toString()});
     }
+  } else {
+    print("Error finishing match: ${response.statusCode}");
+    FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'http_error', 'status_code': response.statusCode, 'response_body': response.body});
   }
+}
 
   Future<void> saveMatchProgress() async {
     if (_hasSavedProgress) {
+      FirebaseAnalytics.instance.logEvent(name: 'save_progress_skipped_already_saved');
       print("Progress has already been saved.");
       return;
     }
     _hasSavedProgress = true;
+    FirebaseAnalytics.instance.logEvent(name: 'save_progress_attempt');
 
     String? token = await loadToken();
     print("Stats: ${playerStats.entries}");
@@ -290,6 +350,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     };
     if (token == null) {
       print("Token is null!");
+      FirebaseAnalytics.instance.logEvent(name: 'save_progress_failed', parameters: {'reason': 'token_null'});
       return;
     }
     print("Stats sendo mandado para o backEnd: $matchData");
@@ -308,12 +369,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         setState(() {
           matchId = newMatchId;
         });
+        FirebaseAnalytics.instance.logEvent(name: 'progress_saved_successfully', parameters: {'match_id': matchId});
       } else {
         print("MatchID was not in the response.");
+        FirebaseAnalytics.instance.logEvent(name: 'progress_save_failed', parameters: {'reason': 'match_id_not_in_response'});
       }
     }
     else {
       print("Error saving progress: ${response.statusCode}");
+      FirebaseAnalytics.instance.logEvent(name: 'progress_save_failed', parameters: {'reason': 'http_error', 'status_code': response.statusCode, 'response_body': response.body});
     }
   }
 
@@ -325,6 +389,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   }) {
     return GestureDetector(
       onTap: () async {
+        FirebaseAnalytics.instance.logEvent(name: 'substitution_button_tapped', parameters: {'team_id': teamId});
         String? token = await loadToken();
         try {
           final response = await http.get(
@@ -369,11 +434,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Error fetching players: ${response.statusCode}')),
             );
+            FirebaseAnalytics.instance.logEvent(name: 'substitution_fetch_players_failed', parameters: {'team_id': teamId, 'http_status': response.statusCode});
           }
         } catch (e) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Unexpected error fetching players.')),
           );
+          FirebaseAnalytics.instance.logEvent(name: 'substitution_fetch_players_failed', parameters: {'team_id': teamId, 'error': e.toString()});
         }
       },
       child: Container(
@@ -412,6 +479,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       onTap: () {
         if (selectedPlayerId != null) {
           updateStat(selectedPlayerId!, statKey);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select a player first!')),
+          );
+          FirebaseAnalytics.instance.logEvent(name: 'action_button_failed', parameters: {'reason': 'no_player_selected'});
         }
         onPressed();
       },
@@ -426,6 +498,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   }
 
   void substitution(Map<String, dynamic> enteringPlayer) {
+    FirebaseAnalytics.instance.logEvent(name: 'substitution_performed', parameters: {'entering_player_id': enteringPlayer['id'], 'leaving_player_id': selectedPlayerId});
     setState(() {
       if (selectedTeam == 1) {
         final index = widget.startersTeam1.indexWhere(
@@ -443,6 +516,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
           widget.startersTeam2[index] = enteringPlayer;
         }
       }
+      selectedPlayerId = null;
+      selectedPlayerJerseyNumber = null;
+      selectedTeam = null;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -481,6 +557,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     } else {
       teamTwoScore += points;
     }
+    FirebaseAnalytics.instance.logEvent(name: 'score_updated', parameters: {'team': team, 'points': points, 'team1_score': teamOneScore, 'team2_score': teamTwoScore});
   }
 
   Widget optionsButton (String imagePath, VoidCallback onPressed) {
@@ -496,6 +573,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
   }
 
   void showExtraMenu() {
+    FirebaseAnalytics.instance.logEvent(name: 'extra_menu_opened');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black.withOpacity(0.8),
@@ -509,6 +587,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                 leading: Icon(Icons.menu_book, color: Colors.white),
                 title: Text("Legend", style: TextStyle(color: Colors.white)),
                 onTap: () {
+                  FirebaseAnalytics.instance.logEvent(name: 'legend_menu_item_clicked');
                   Navigator.pop(context);
                   showDialog(
                     context: context,
@@ -528,7 +607,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
               ListTile(
                 leading: Icon(Icons.flag, color: Colors.white),
                 title: Text("Finish Match", style: TextStyle(color: Colors.white)),
-                onTap: () => finishMatch(),
+                onTap: () {
+                  FirebaseAnalytics.instance.logEvent(name: 'finish_match_menu_item_clicked');
+                  Navigator.pop(context);
+                  finishMatch();
+                },
               ),
               ListTile(
                 leading: Icon(Icons.exit_to_app, color: Colors.red),
@@ -537,6 +620,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                   style: TextStyle(color: Colors.red),
                 ),
                 onTap: () {
+                  FirebaseAnalytics.instance.logEvent(name: 'exit_without_saving_menu_item_clicked');
                   Navigator.pop(context);
                   showDialog(
                     context: context,
@@ -546,11 +630,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                         content: Text("All unsaved stats will be lost."),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text("Cancel"),
+                            onPressed: () {
+                              FirebaseAnalytics.instance.logEvent(name: 'exit_without_saving_canceled');
+                              Navigator.pop(context);
+                            },
+                            child: Text("Cancel", style: TextStyle(color: Colors.white)),
                           ),
                           TextButton(
                             onPressed: () {
+                              FirebaseAnalytics.instance.logEvent(name: 'exit_without_saving_confirmed');
                               Navigator.pop(context);
                               Navigator.pushAndRemoveUntil(
                                 context,
@@ -691,7 +779,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
             children: List.generate(
               widget.gameMode == "5x5" ? 5 : widget.gameMode == "3x3" ? 3 : 1,
                   (index) {
-                int jerseyNumber = starters[index]['jerseyNumber'];
+                String jerseyNumber = starters[index]['jerseyNumber'];
                 int playerId = starters[index]['id_player'];
                 bool isSelected = selectedPlayerId == playerId && selectedTeam == teamNumber;
                 return GestureDetector(
@@ -709,10 +797,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                         FittedBox(
-                         fit: BoxFit.scaleDown,
-                         child: Text(
-                           "$jerseyNumber",
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            "$jerseyNumber",
                             style: TextStyle(color: Colors.white, fontSize: 37),
                             textAlign: TextAlign.center,
                           ),
@@ -791,3 +879,4 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 }
+

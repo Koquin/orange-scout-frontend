@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:OrangeScoutFE/util/token_utils.dart';
-import 'registerScreen.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+
+import 'package:OrangeScoutFE/controller/authController.dart';
+import 'package:OrangeScoutFE/view/registerScreen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,16 +14,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  String? baseUrl = dotenv.env['API_BASE_URL'];
-
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  final AuthController _authController = AuthController();
+
   @override
   void initState() {
     super.initState();
-    // Log de visualização de tela quando o usuário ENTRA nesta tela
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirebaseAnalytics.instance.logScreenView(
         screenName: 'LoginScreen',
@@ -44,18 +42,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
 
-    setState(() {
-      _isLoading = true;
-    });
-
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
-      );
-      setState(() {
-        _isLoading = false;
-      });
-      // Log de tentativa de login falha (campos vazios)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill in all fields')),
+        );
+      }
       FirebaseAnalytics.instance.logEvent(
         name: 'login_attempt',
         parameters: {
@@ -68,23 +60,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/auth/login"),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
-      );
+    setState(() {
+      _isLoading = true;
+    });
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        String? token = responseData['token'];
-        if (token == null || token.isEmpty) {
-          throw Exception("Token not found in response");
-        }
-        saveToken(token);
+    final LoginResult result = await _authController.loginUser(email, password);
+
+    if (mounted) {
+      if (result.success) {
         Navigator.pushReplacementNamed(context, '/main');
 
-        // Log de login bem-sucedido
         FirebaseAnalytics.instance.logEvent(
           name: 'login_attempt',
           parameters: {
@@ -93,38 +78,22 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid credentials')),
+          SnackBar(content: Text(result.errorMessage ?? 'Unknown login error')),
         );
-        // Log de tentativa de login falha (credenciais inválidas)
         FirebaseAnalytics.instance.logEvent(
           name: 'login_attempt',
           parameters: {
             'status': 'failed',
-            'reason': 'invalid_credentials',
-            'http_status_code': response.statusCode,
+            'reason': result.errorMessage ?? 'unknown_reason',
           },
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error connecting to the server: ${e.toString()}')),
-      );
-      // Log de tentativa de login falha (erro de conexão)
-      FirebaseAnalytics.instance.logEvent(
-        name: 'login_attempt',
-        parameters: {
-          'status': 'failed',
-          'reason': 'connection_error',
-          'error_details': e.toString(),
-        },
-      );
     }
 
     setState(() {
       _isLoading = false;
     });
   }
-
 
   Widget customButton({required String text, required VoidCallback onPressed}) {
     return ElevatedButton(
@@ -157,89 +126,133 @@ class _LoginScreenState extends State<LoginScreen> {
       DeviceOrientation.portraitDown,
     ]);
 
-    return Scaffold(
-      body: Center(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.0,
-              colors: [
-                Color(0xFFFF4500),
-                Color(0xFF84442E),
-                Color(0xFF3A2E2E),
-              ],
-              stops: [0.0, 0.2, 0.7],
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('assets/images/OrangeScoutLogo.png'),
-              const SizedBox(height: 40),
-              SizedBox(
-                height: 40,
-                width: MediaQuery.of(context).size.width * 0.8,
-                child: TextField(
-                  controller: _emailController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFFF57C00),
-                    hintText: "Email",
-                    hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 40,
-                width: MediaQuery.of(context).size.width * 0.8,
-                child: TextField(
-                  controller: _passwordController,
-                  style: const TextStyle(color: Colors.white),
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFFF57C00),
-                    hintText: "Password",
-                    hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
-                  ),
-                ),
-              ),
+    final screenHeight = MediaQuery.of(context).size.height;
+    final keyboardSpace = MediaQuery.of(context).viewInsets.bottom;
+    final contentHeight = screenHeight - keyboardSpace;
 
-              const SizedBox(height: 20),
-              customButton(
-                text: "Login",
-                onPressed: _isLoading ? () {} : _login,
-              ),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: () {
-                  // Log de clique no link para registro
-                  FirebaseAnalytics.instance.logEvent(
-                    name: 'navigate_to_register_clicked',
-                  );
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => RegisterScreen()),
-                  );
-                },
-                child: const Text(
-                  "I don't have an account",
-                  style: TextStyle(
-                    color: Colors.blue,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.0,
+            colors: [
+              Color(0xFFFF4500),
+              Color(0xFF84442E),
+              Color(0xFF3A2E2E),
             ],
+            stops: [0.0, 0.2, 0.7],
+          ),
+        ),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.only(bottom: keyboardSpace),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: contentHeight,
+            ),
+            child: IntrinsicHeight(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(top: screenHeight * 0.1),
+                    child: Image.asset(
+                      'assets/images/OrangeScoutLogo.png',
+                      width: MediaQuery.of(context).size.width * 0.6,
+                      height: MediaQuery.of(context).size.width * 0.6 * (250 / 410),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    height: 50,
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: TextField(
+                      controller: _emailController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
+                        hintText: "Email",
+                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
+                        labelText: "Email Address",
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        prefixIcon: const Icon(Icons.email, color: Color(0xFFFFCC80)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+
+                  SizedBox(
+                    height: 50,
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: TextField(
+                      controller: _passwordController,
+                      style: const TextStyle(color: Colors.white),
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
+                        hintText: "Password",
+                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
+                        labelText: "Password",
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        prefixIcon: const Icon(Icons.lock, color: Color(0xFFFFCC80)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+                  customButton(
+                    text: "Login",
+                    onPressed: _isLoading ? () {} : _login,
+                  ),
+                  const SizedBox(height: 25),
+                  GestureDetector(
+                    onTap: () {
+                      FirebaseAnalytics.instance.logEvent(
+                        name: 'navigate_to_register_clicked',
+                      );
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => RegisterScreen()),
+                      );
+                    },
+                    child: const Text(
+                      "I don't have an account",
+                      style: TextStyle(
+                        color: Colors.blueAccent,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: screenHeight * 0.05),
+                ],
+              ),
+            ),
           ),
         ),
       ),

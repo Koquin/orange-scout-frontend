@@ -93,6 +93,16 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+        appBar: AppBar(
+        backgroundColor: const Color(0xFFFF4500),
+          leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+      FirebaseAnalytics.instance.logEvent(name: 'create_team_back_button_tapped', parameters: {'team_id': widget.teamId});
+            Navigator.pop(context);
+            },
+          ),
+        ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(

@@ -1,10 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import '../util/token_utils.dart';
-import 'createTeamScreen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:OrangeScoutFE/view/createTeamScreen.dart';
+import 'package:OrangeScoutFE/controller/playerController.dart';
+import 'package:OrangeScoutFE/controller/teamController.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+
 
 class EditTeamScreen extends StatefulWidget {
   final int teamId;
@@ -16,114 +17,189 @@ class EditTeamScreen extends StatefulWidget {
 }
 
 class _EditTeamScreenState extends State<EditTeamScreen> {
-  //Base url
-  String? baseUrl = dotenv.env['API_BASE_URL'];
-
   List<Map<String, dynamic>> players = [];
   bool isLoading = true;
+
+  final PlayerController _playerController = PlayerController();
+  final TeamController _teamController = TeamController();
 
   @override
   void initState() {
     super.initState();
-    fetchPlayers();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirebaseAnalytics.instance.logScreenView(
+        screenName: 'EditTeamPlayersScreen',
+        screenClass: 'EditTeamScreenState',
+        parameters: {'team_id': widget.teamId},
+      );
+    });
+    _fetchPlayers();
   }
 
-  Future<void> fetchPlayers() async {
-    setState(() => isLoading = true);
-    try {
-      String? token = await loadToken();
-      final response = await http.get(
-        Uri.parse("$baseUrl/player/team-players/${widget.teamId}"),
-        headers: {
-          "Authorization": "Bearer $token",
-        },
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> playerList = json.decode(response.body);
-        players = playerList.map((p) => Map<String, dynamic>.from(p)).toList();
-      }
-    } catch (e) {
-      print("Error fetching players: $e");
+  Future<void> _pickImage() async {
+    FirebaseAnalytics.instance.logEvent(name: 'pick_image_button_tapped');
+    final ImagePicker picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+      });
+      FirebaseAnalytics.instance.logEvent(name: 'image_picked_successfully');
+    } else {
+      FirebaseAnalytics.instance.logEvent(name: 'image_pick_canceled');
     }
-    setState(() => isLoading = false);
+  }
+
+  Future<void> _fetchPlayers() async {
+    setState(() => isLoading = true);
+    List<dynamic> fetchedPlayers = await _playerController.fetchPlayersByTeamId(widget.teamId);
+
+    setState(() {
+      players = fetchedPlayers.map((p) => Map<String, dynamic>.from(p)).toList();
+      isLoading = false;
+    });
+
+    if (fetchedPlayers.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No players found for this team. Add some!')),
+      );
+    }
   }
 
   void addNewPlayerRow() {
     setState(() {
       players.add({'playerName': '', 'jerseyNumber': '', 'isNew': true});
     });
+    FirebaseAnalytics.instance.logEvent(name: 'add_new_player_row');
   }
 
   Future<void> confirmNewPlayer(int index, String name, String number) async {
-    String? token = await loadToken();
-    if (name.isEmpty || number.isEmpty) return;
-
-    try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/player/${widget.teamId}"),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token"
-        },
-        body: json.encode({
-          'playerName': name,
-          'jerseyNumber': number,
-          'team': {'id': widget.teamId},
-        }),
-      );
-      print("Requisição: ${response.body}");
-      if (response.statusCode == 201) {
-        await fetchPlayers();
+    if (name.isEmpty || number.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please fill both boxes")),
+        );
       }
-    } catch (e) {
-      print("Error adding player: $e");
+      FirebaseAnalytics.instance.logEvent(name: 'add_player_failed', parameters: {'reason': 'empty_fields'});
+      return;
     }
+
+    setState(() => isLoading = true);
+    final PlayerOperationResult result = await _playerController.addPlayer(
+      playerName: name,
+      jerseyNumber: number,
+      teamId: widget.teamId,
+    );
+
+    if (mounted) {
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Player added successfully!")),
+        );
+        await _fetchPlayers();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorMessage ?? 'Unknown error adding player')),
+        );
+      }
+    }
+    setState(() => isLoading = false);
   }
 
   Future<void> deletePlayer(int index) async {
     final id = players[index]['id_player'];
-    try {
-      String? token = await loadToken();
-      final response = await http.delete(
-        Uri.parse("$baseUrl/player/$id"),
-        headers: {
-          "Authorization": "Bearer $token",
-        },
-      );
-      if (response.statusCode == 200) {
-        await fetchPlayers();
+    if (id == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Player ID not found.')),
+        );
       }
-    } catch (e) {
-      print("Error deleting player: $e");
+      FirebaseAnalytics.instance.logEvent(name: 'delete_player_failed', parameters: {'reason': 'player_id_null'});
+      return;
     }
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Delete Player'),
+        content: const Text('Are you sure you want to delete this player?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              FirebaseAnalytics.instance.logEvent(name: 'delete_player_canceled');
+              Navigator.of(context).pop(false);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              FirebaseAnalytics.instance.logEvent(name: 'delete_player_confirmed');
+              Navigator.of(context).pop(true);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == null || !confirm) return;
+
+    setState(() => isLoading = true);
+    final PlayerOperationResult result = await _playerController.deletePlayer(id);
+
+    if (mounted) {
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Player deleted successfully!")),
+        );
+        await _fetchPlayers();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorMessage ?? 'Unknown error deleting player')),
+        );
+      }
+    }
+    setState(() => isLoading = false);
   }
 
   Future<void> editPlayer(int index) async {
-    String? token = await loadToken();
     final player = players[index];
-    print("Player: ${player}");
-    try {
-      final response = await http.put(
-        Uri.parse("$baseUrl/player/${player['id_player']}"),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token"
-        },
-        body: json.encode({
-          'playerName': player['playerName'],
-          'jerseyNumber': player['jerseyNumber'],
-        }),
-      );
-      print("Requisição: ${response.body}");
-      if (response.statusCode == 200) {
-        await fetchPlayers();
+    final id = player['id_player'];
+
+    if (id == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Player ID not found for editing.')),
+        );
       }
-    } catch (e) {
-      print("Error editing player: $e");
+      FirebaseAnalytics.instance.logEvent(name: 'edit_player_failed', parameters: {'reason': 'player_id_null'});
+      return;
     }
+
+    setState(() => isLoading = true);
+    final PlayerOperationResult result = await _playerController.editPlayer(
+      playerId: id,
+      playerName: player['playerName'],
+      jerseyNumber: player['jerseyNumber'],
+    );
+
+    if (mounted) {
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Player updated successfully!")),
+        );
+        await _fetchPlayers();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorMessage ?? 'Unknown error updating player')),
+        );
+      }
+    }
+    setState(() => isLoading = false);
   }
 
   void showEditDialog(int index) {
+    FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_opened', parameters: {'player_id': players[index]['id_player']});
     final player = players[index];
     final TextEditingController nameController = TextEditingController(text: player['playerName']);
     final TextEditingController numberController = TextEditingController(text: player['jerseyNumber'].toString());
@@ -153,11 +229,15 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           actions: [
             TextButton(
               child: const Text("Cancel", style: TextStyle(color: Colors.red)),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_canceled');
+                Navigator.of(context).pop();
+              },
             ),
             TextButton(
               child: const Text("Save", style: TextStyle(color: Colors.green)),
               onPressed: () {
+                FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_saved');
                 setState(() {
                   players[index]['playerName'] = nameController.text;
                   players[index]['jerseyNumber'] = numberController.text;
@@ -170,6 +250,61 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         );
       },
     );
+  }
+
+  Future<void> _deleteTeam() async {
+    FirebaseAnalytics.instance.logEvent(name: 'delete_team_button_tapped');
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Deletion'),
+          content: const Text('Are you sure you want to delete this team? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                FirebaseAnalytics.instance.logEvent(name: 'delete_team_canceled');
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                FirebaseAnalytics.instance.logEvent(name: 'delete_team_confirmed');
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == null || !confirmDelete) {
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    final bool success = await _teamController.deleteTeam(widget.teamId);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Team deleted successfully!')),
+        );
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete team.')),
+        );
+      }
+    }
+    setState(() {
+      isLoading = false;
+    });
   }
 
   Widget buildPlayerRow(Map<String, dynamic> player, int index) {
@@ -216,6 +351,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
               IconButton(
                 icon: const Icon(Icons.check, color: Colors.green),
                 onPressed: () {
+                  FirebaseAnalytics.instance.logEvent(name: 'add_new_player_confirm_button_tapped');
                   if (!(nameController.text.isEmpty || numberController.text.isEmpty)) {
                     confirmNewPlayer(index, nameController.text, numberController.text);
                   } else {
@@ -275,6 +411,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         ),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
+            FirebaseAnalytics.instance.logEvent(name: 'player_popup_menu_selected', parameters: {'action': value});
             if (value == 'edit') {
               showEditDialog(index);
             } else if (value == 'delete') {
@@ -300,91 +437,14 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
       ),
       child: ListTile(
         title: TextButton(
-          onPressed: addNewPlayerRow,
+          onPressed: () {
+            FirebaseAnalytics.instance.logEvent(name: 'new_player_button_tapped');
+            addNewPlayerRow();
+          },
           child: const Text("New player", style: TextStyle(color: Colors.orange)),
         ),
       ),
     );
-  }
-
-  Future<void> _deleteTeam() async {
-    final bool? confirmDelete = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Deletion'),
-          content: const Text('Are you sure you want to delete this team? This action cannot be undone.'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmDelete == null || !confirmDelete) {
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-    });
-
-    String? token = await loadToken();
-    if (token == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: Token not found.')),
-        );
-      }
-      setState(() {
-        isLoading = false;
-      });
-      return;
-    }
-
-    try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/team/${widget.teamId}'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (mounted) {
-        if (response.statusCode == 204) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Team deleted successfully!')),
-          );
-          Navigator.pop(context, true);
-        } else {
-          String errorMessage = 'Failed to delete team: ${response.statusCode}';
-          if (response.body.isNotEmpty) {
-            print('Server response: ${response.body}');
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage)),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Connection error: $e')),
-        );
-      }
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
   }
 
   @override
@@ -394,53 +454,62 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
       DeviceOrientation.portraitDown,
     ]);
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFFF4500),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            FirebaseAnalytics.instance.logEvent(name: 'edit_team_players_back_button_tapped', parameters: {'team_id': widget.teamId});
+            Navigator.pop(context);
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.white, size: 28),
+            tooltip: 'Edit Team Details',
+            onPressed: isLoading ? null : () async {
+              FirebaseAnalytics.instance.logEvent(name: 'edit_team_details_button_tapped', parameters: {'team_id': widget.teamId});
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CreateTeamScreen(teamId: widget.teamId),
+                ),
+              );
+              if (result == true) {
+                _fetchPlayers();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Team details refreshed!")),
+                  );
+                }
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.white, size: 28),
+            tooltip: 'Delete Team',
+            onPressed: isLoading ? null : _deleteTeam,
+          ),
+        ],
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.0,
             colors: [
-              Color(0xFFFF4500),
               Color(0xFF84442E),
-              Colors.black,
+              Color(0xFF3A2E2E),
             ],
-            stops: [0.0, 0.5, 0.9],
+            stops: [0.0, 0.7],
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
             : Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: Row( // <-- This Row is necessary to put two IconButtons side-by-side
-                mainAxisSize: MainAxisSize.min, // Keep the row compact
-                children: [
-                  // Existing Edit Team button
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.white, size: 28),
-                    tooltip: 'Edit Team',
-                    onPressed: isLoading ? null : () { // Disable if loading
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CreateTeamScreen(teamId: widget.teamId),
-                        ),
-                      );
-                    },
-                  ),
-                  // New Delete Team button
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.white, size: 28),
-                    tooltip: 'Delete Team',
-                    onPressed: isLoading ? null : _deleteTeam, // Disable if loading
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
                 itemCount: players.length + 1,
