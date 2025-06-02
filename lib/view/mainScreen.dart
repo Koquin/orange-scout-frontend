@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:OrangeScoutFE/view/teamsScreen.dart';
-import 'package:OrangeScoutFE/view/selectGameScreen.dart';
-import 'package:OrangeScoutFE/view/historyScreen.dart';
-import 'package:OrangeScoutFE/util/token_utils.dart';
-import 'package:OrangeScoutFE/view/loginScreen.dart';
-import 'package:OrangeScoutFE/controller/matchController.dart';
-import 'package:OrangeScoutFE/view/gameScreen.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+
+// Import your DTOs
+import 'package:OrangeScoutFE/dto/match_dto.dart';
+import 'package:OrangeScoutFE/dto/team_dto.dart';
+
+// Import your controllers
+import 'package:OrangeScoutFE/controller/match_controller.dart';
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart';
+import 'package:OrangeScoutFE/util/token_utils.dart';
+
+// Import your views
+import 'package:OrangeScoutFE/view/gameScreen.dart';
+import 'package:OrangeScoutFE/view/historyScreen.dart';
+import 'package:OrangeScoutFE/view/loginScreen.dart';
+import 'package:OrangeScoutFE/view/selectGameScreen.dart';
+import 'package:OrangeScoutFE/view/teamsScreen.dart';
 
 
 class MainScreen extends StatefulWidget {
@@ -19,99 +28,111 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  Widget? _overlayPage; // Reintroduzido para gerenciar overlays
 
   final MatchController _matchController = MatchController();
 
   @override
   void initState() {
+    super.initState();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirebaseAnalytics.instance.logScreenView(
         screenName: 'MainScreen',
         screenClass: 'MainScreenState',
       );
+      _checkLastUnfinishedMatch();
     });
-    _checkLastMatchIfExists();
   }
 
-  Future<void> _checkLastMatchIfExists() async {
-    final Map<String, dynamic>? lastMatch = await _matchController.checkLastUnfinishedMatch();
+  /// Checks if there's a last unfinished match and prompts the user to continue it.
+  Future<void> _checkLastUnfinishedMatch() async {
+    debugPrint("Checking for last unfinished match...");
+    final MatchDTO? lastMatch = await _matchController.checkLastUnfinishedMatch();
+
     if (lastMatch != null) {
       FirebaseAnalytics.instance.logEvent(name: 'unfinished_match_dialog_shown');
       _showLastMatchDialog(lastMatch);
     } else {
       FirebaseAnalytics.instance.logEvent(name: 'no_unfinished_match_to_show');
+      debugPrint("No unfinished match found.");
     }
   }
 
-  void _showLastMatchDialog(Map<String, dynamic> lastMatch) {
+  /// Displays a dialog asking the user to continue or discard an unfinished match.
+  void _showLastMatchDialog(MatchDTO lastMatch) {
+    debugPrint("Showing dialog for unfinished match: ${lastMatch.idMatch}");
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF3A2E2E),
-        title: const Text("You have an unfinished match", style: TextStyle(color: Colors.white)),
-        content: const Text("Continue match?", style: TextStyle(color: Colors.white70)),
+        title: const Text("Partida Inacabada", style: TextStyle(color: Colors.white)),
+        content: const Text("Você tem uma partida não finalizada. Deseja continuar?", style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () async {
               FirebaseAnalytics.instance.logEvent(name: 'unfinished_match_dialog_discard');
-              final bool finished = await _matchController.finishMatch(lastMatch["idMatch"]);
-              if (finished && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Match discarded successfully!")),
+              Navigator.of(context).pop();
+
+              final bool success = await _matchController.finishMatch(lastMatch.idMatch!);
+              if (success && mounted) {
+                PersistentSnackbar.show(
+                  context: context,
+                  message: "Partida descartada com sucesso!",
+                  backgroundColor: Colors.green.shade700,
+                  textColor: Colors.white,
+                  icon: Icons.check_circle_outline,
                 );
               } else if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Failed to discard match.")),
+                PersistentSnackbar.show(
+                  context: context,
+                  message: "Falha ao descartar partida.",
+                  backgroundColor: Colors.red.shade700,
+                  textColor: Colors.white,
+                  icon: Icons.error_outline,
                 );
               }
-              Navigator.of(context).pop();
             },
-            child: const Text("No", style: TextStyle(color: Colors.redAccent)),
+            child: const Text("Não", style: TextStyle(color: Colors.redAccent)),
           ),
           TextButton(
             onPressed: () {
               FirebaseAnalytics.instance.logEvent(name: 'unfinished_match_dialog_continue');
               Navigator.of(context).pop();
 
-              final List<Map<String, dynamic>> convertedStats = (lastMatch["stats"] as List)
-                  .map((e) => Map<String, dynamic>.from(e))
-                  .toList();
-
+              // Navigate to GameScreen with loaded data
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
                   builder: (context) => GameScreen(
-                    teamOneScore: lastMatch["teamOneScore"],
-                    teamTwoScore: lastMatch["teamTwoScore"],
-                    userId: lastMatch["userId"],
-                    matchId: lastMatch["idMatch"],
-                    team1: lastMatch["teamOne"],
-                    team2: lastMatch["teamTwo"],
-                    startersTeam1: lastMatch["startersTeam1"],
-                    startersTeam2: lastMatch["startersTeam2"],
-                    gameMode: lastMatch["gameMode"],
-                    playerStats: convertedStats,
+                    teamOneScore: lastMatch.teamOneScore,
+                    teamTwoScore: lastMatch.teamTwoScore,
+                    userId: lastMatch.appUserId!, // Assumindo que userId nunca será nulo aqui
+                    matchId: lastMatch.idMatch,
+                    team1: lastMatch.teamOne,
+                    team2: lastMatch.teamTwo,
+                    startersTeam1: lastMatch.startersTeam1,
+                    startersTeam2: lastMatch.startersTeam2,
+                    gameMode: lastMatch.gameMode,
+                    initialPlayerStats: lastMatch.stats,
                   ),
                 ),
               );
             },
-            child: const Text("Yes", style: TextStyle(color: Colors.greenAccent)),
+            child: const Text("Sim", style: TextStyle(color: Colors.greenAccent)),
           ),
         ],
       ),
     );
   }
 
+  /// Handles tap events on the bottom navigation bar.
   void _onItemTapped(int index) {
     setState(() {
-      _overlayPage = null; // Garante que o overlay seja fechado ao mudar de aba
       _selectedIndex = index;
     });
     FirebaseAnalytics.instance.logEvent(
@@ -120,16 +141,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _navigateToOverlay(Widget page) { // Reintroduzido para gerenciar overlays
-    setState(() {
-      _overlayPage = page is Container ? null : page; // Define o overlay, ou null para fechar
-    });
-    FirebaseAnalytics.instance.logEvent(
-      name: 'overlay_page_navigated',
-      parameters: {'page_type': page.runtimeType.toString()},
-    );
-  }
-
+  /// Handles user logout.
   Future<void> _logout() async {
     FirebaseAnalytics.instance.logEvent(name: 'logout_attempt');
     await clearToken();
@@ -137,19 +149,20 @@ class _MainScreenState extends State<MainScreen> {
       FirebaseAnalytics.instance.logEvent(name: 'logout_success');
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => LoginScreen()),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     }
   }
 
+  /// Returns the widget corresponding to the selected navigation tab.
   Widget _getSelectedPage() {
     switch (_selectedIndex) {
       case 0:
-        return SelectGameScreen(onNavigate: _navigateToOverlay); // Passa a função de navegação para overlay
+        return const SelectGameScreen();
       case 1:
-        return TeamsScreen();
+        return const TeamsScreen();
       case 2:
-        return HistoryScreen();
+        return const HistoryScreen();
       default:
         return Container();
     }
@@ -157,6 +170,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _setPortraitOrientation();
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -166,12 +181,12 @@ class _MainScreenState extends State<MainScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white, size: 28),
-            tooltip: 'Logout',
+            tooltip: 'Sair',
             onPressed: _logout,
           ),
         ],
       ),
-      body: _overlayPage ?? _getSelectedPage(),
+      body: _getSelectedPage(),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF3A2E2E),
         selectedItemColor: Colors.orange,
@@ -190,7 +205,7 @@ class _MainScreenState extends State<MainScreen> {
               width: 80,
               height: 80,
             ),
-            label: '',
+            label: 'Iniciar Jogo',
           ),
           BottomNavigationBarItem(
             icon: Image.asset(
@@ -200,7 +215,7 @@ class _MainScreenState extends State<MainScreen> {
               width: 80,
               height: 80,
             ),
-            label: '',
+            label: 'Times',
           ),
           BottomNavigationBarItem(
             icon: Image.asset(
@@ -210,10 +225,18 @@ class _MainScreenState extends State<MainScreen> {
               width: 80,
               height: 80,
             ),
-            label: '',
+            label: 'Histórico',
           ),
         ],
       ),
     );
+  }
+
+  // Helper for orientation
+  void _setPortraitOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
   }
 }

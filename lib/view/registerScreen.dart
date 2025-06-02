@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:OrangeScoutFE/view/loginScreen.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
-import 'package:OrangeScoutFE/controller/authController.dart';
+import 'package:OrangeScoutFE/controller/auth_controller.dart';
+import 'package:OrangeScoutFE/view/loginScreen.dart';
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart';
+
+import '../dto/auth_result_dto.dart';
 
 
 class RegisterScreen extends StatefulWidget {
@@ -18,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  final _formKey = GlobalKey<FormState>(); // Added for form validation
 
   final AuthController _authController = AuthController();
 
@@ -30,6 +34,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         screenClass: 'RegisterScreenState',
       );
     });
+    // Ensure portrait orientation is set as soon as possible for this screen
+    _setPortraitOrientation();
   }
 
   @override
@@ -40,60 +46,86 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _register() async {
-    final String username = _usernameController.text.trim();
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text.trim();
+  void _setPortraitOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
 
-    if (username.isEmpty || email.isEmpty || password.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill in all fields')),
-        );
-      }
+  Future<void> _register() async {
+    // Validate form fields first
+    if (!_formKey.currentState!.validate()) {
       FirebaseAnalytics.instance.logEvent(
-        name: 'register_attempt',
+        name: 'register_attempt_failed',
         parameters: {
-          'status': 'failed',
-          'reason': 'empty_fields',
-          'username_provided': username.isNotEmpty,
-          'email_provided': email.isNotEmpty,
-          'password_provided': password.isNotEmpty,
+          'reason': 'form_validation_failed',
         },
+      );
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Por favor, preencha todos os campos corretamente.',
+        backgroundColor: Colors.red.shade700,
+        textColor: Colors.white,
+        icon: Icons.error_outline,
+        duration: const Duration(seconds: 3),
       );
       return;
     }
+
+    final String username = _usernameController.text.trim();
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
 
     setState(() {
       _isLoading = true;
     });
 
-    final RegisterResult result = await _authController.registerUser(username, email, password);
+    // Use AuthResult from AuthController
+    final AuthResult result = await _authController.registerUser(username, email, password);
 
     if (mounted) {
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account created! You can now log in.')),
+        // Backend now returns a token directly after successful registration
+        // You might want to navigate to MainScreen directly, or inform user to check email
+        // and navigate to LoginScreen, depending on your desired flow.
+        // For now, based on your previous code, navigate to LoginScreen and show message.
+        // If the backend automatically logs in and gives token, you can navigate to MainScreen.
+
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Conta criada e código de validação enviado!', // Use userMessage
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
+          duration: const Duration(seconds: 4),
         );
+
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
         FirebaseAnalytics.instance.logEvent(
-          name: 'register_attempt',
+          name: 'register_attempt_success',
           parameters: {
-            'status': 'success',
+            'email_hash': email.hashCode, // Log hash for privacy
           },
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Unknown registration error')),
+        // Use the userMessage from AuthResult for display
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Erro desconhecido ao registrar conta.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+          duration: const Duration(seconds: 4),
         );
         FirebaseAnalytics.instance.logEvent(
-          name: 'register_attempt',
+          name: 'register_attempt_failed',
           parameters: {
-            'status': 'failed',
-            'reason': result.errorMessage ?? 'unknown_reason',
+            'reason': result.errorMessage ?? 'unknown_backend_error',
+            'user_message': result.userMessage ?? 'N/A',
           },
         );
       }
@@ -104,7 +136,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  Widget customButton({
+  // --- Input Field Helper Widget ---
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required String labelText,
+    required IconData icon,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+  }) {
+    return SizedBox(
+      height: 60, // Increased height for better tap target
+      width: MediaQuery.of(context).size.width * 0.8,
+      child: TextFormField( // Changed to TextFormField for validation
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        obscureText: obscureText,
+        validator: validator, // Add validator
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: const Color(0xFFF57C00).withOpacity(0.7),
+          hintText: hintText,
+          hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
+          labelText: labelText,
+          labelStyle: const TextStyle(color: Colors.white70),
+          prefixIcon: Icon(icon, color: const Color(0xFFFFCC80)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder( // Custom error border
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 1.5),
+          ),
+          focusedErrorBorder: OutlineInputBorder( // Custom focused error border
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 15), // Adjusted padding
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomButton({
     required String text,
     required VoidCallback onPressed,
     bool isLoading = false,
@@ -112,12 +191,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFF9800),
+        backgroundColor: const Color(0xFFFF9800), // Orange primary color
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
         elevation: 5,
+        minimumSize: Size(MediaQuery.of(context).size.width * 0.8, 50), // Ensure button has consistent width
       ),
       child: isLoading
           ? const CircularProgressIndicator(color: Colors.white)
@@ -132,12 +212,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+
   @override
-  Widget build(BuildContext context) {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+  Widget build(BuildContext
+  context) {
+    // Orientation is set in initState, no need to set it again in build
+    _setPortraitOrientation();
 
     final screenHeight = MediaQuery.of(context).size.height;
     final keyboardSpace = MediaQuery.of(context).viewInsets.bottom;
@@ -167,132 +247,102 @@ class _RegisterScreenState extends State<RegisterScreen> {
               minHeight: contentHeight,
             ),
             child: IntrinsicHeight(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/images/OrangeScoutLogo.png',
-                    width: MediaQuery.of(context).size.width * 0.5,
-                    height: MediaQuery.of(context).size.width * 0.5 * (250 / 410),
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 15),
+              child: Form( // Wrap with Form for validation
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      'assets/images/OrangeScoutLogo.png',
+                      width: MediaQuery.of(context).size.width * 0.5,
+                      height: MediaQuery.of(context).size.width * 0.5 * (250 / 410),
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 30),
 
-                  // Campo de Username
-                  SizedBox(
-                    height: 50,
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    child: TextField(
+                    // Campo de Username
+                    _buildTextField(
                       controller: _usernameController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
-                        hintText: "Username",
-                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                        labelText: "Username",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon: const Icon(Icons.person, color: Color(0xFFFFCC80)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
-                      ),
+                      hintText: "Nome de Usuário",
+                      labelText: "Nome de Usuário",
+                      icon: Icons.person,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor, insira um nome de usuário.';
+                        }
+                        if (value.length < 3) {
+                          return 'O nome de usuário deve ter no mínimo 3 caracteres.';
+                        }
+                        return null;
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 15),
+                    const SizedBox(height: 15),
 
-                  // Campo de Email
-                  SizedBox(
-                    height: 50,
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    child: TextField(
+                    // Campo de Email
+                    _buildTextField(
                       controller: _emailController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
-                        hintText: "Email",
-                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                        labelText: "Email Address",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon: const Icon(Icons.email, color: Color(0xFFFFCC80)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
-                      ),
+                      hintText: "Email",
+                      labelText: "Endereço de Email",
+                      icon: Icons.email,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor, insira seu email.';
+                        }
+                        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                          return 'Formato de email inválido.';
+                        }
+                        return null;
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 15),
+                    const SizedBox(height: 15),
 
-                  // Campo de Senha
-                  SizedBox(
-                    height: 50,
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    child: TextField(
+                    // Campo de Senha
+                    _buildTextField(
                       controller: _passwordController,
-                      style: const TextStyle(color: Colors.white),
+                      hintText: "Senha",
+                      labelText: "Senha",
+                      icon: Icons.lock,
                       obscureText: true,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
-                        hintText: "Password",
-                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                        labelText: "Password",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon: const Icon(Icons.lock, color: Color(0xFFFFCC80)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
-                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor, insira sua senha.';
+                        }
+                        if (value.length < 6) {
+                          return 'A senha deve ter no mínimo 6 caracteres.';
+                        }
+                        return null;
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 30),
+                    const SizedBox(height: 30),
 
-                  customButton(
-                    text: "Register",
-                    isLoading: _isLoading,
-                    onPressed: _isLoading ? () {} : _register,
-                  ),
-                  const SizedBox(height: 25),
-                  GestureDetector(
-                    onTap: () {
-                      FirebaseAnalytics.instance.logEvent(
-                        name: 'navigate_to_login_clicked',
-                      );
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => LoginScreen()),
-                      );
-                    },
-                    child: const Text(
-                      "I already have an account",
-                      style: TextStyle(
-                        color: Colors.blueAccent,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w600,
+                    _buildCustomButton(
+                      text: "Registrar",
+                      isLoading: _isLoading,
+                      onPressed: _isLoading ? () {} : _register,
+                    ),
+                    const SizedBox(height: 25),
+                    GestureDetector(
+                      onTap: () {
+                        FirebaseAnalytics.instance.logEvent(
+                          name: 'navigate_to_login_clicked',
+                        );
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        );
+                      },
+                      child: const Text(
+                        "Já tenho uma conta",
+                        style: TextStyle(
+                          color: Colors.blueAccent,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

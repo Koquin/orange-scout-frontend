@@ -1,63 +1,76 @@
+// lib/view/gameScreen.dart
+
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:OrangeScoutFE/util/token_utils.dart';
-import 'package:OrangeScoutFE/util/location.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+
+// Import your DTOs
+import 'package:OrangeScoutFE/dto/location_dto.dart';
+import 'package:OrangeScoutFE/dto/match_dto.dart';
+import 'package:OrangeScoutFE/dto/player_dto.dart';
+import 'package:OrangeScoutFE/dto/stats_dto.dart';
+import 'package:OrangeScoutFE/dto/team_dto.dart';
+
+// Import your controllers
+import 'package:OrangeScoutFE/controller/location_controller.dart';
+import 'package:OrangeScoutFE/controller/match_controller.dart';
+import 'package:OrangeScoutFE/controller/player_controller.dart';
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart';
 
 import 'mainScreen.dart';
-import 'package:firebase_analytics/firebase_analytics.dart'; // Importe FirebaseAnalytics
 
 class GameScreen extends StatefulWidget {
-  @override
-  _GameScreenState createState() => _GameScreenState();
-  final Map<String, dynamic> team1;
-  final Map<String, dynamic> team2;
-  final List<dynamic> startersTeam1;
-  final List<dynamic> startersTeam2;
+  final TeamDTO team1;
+  final TeamDTO team2;
+  final List<PlayerDTO> startersTeam1;
+  final List<PlayerDTO> startersTeam2;
   final String gameMode;
-  final List<Map<String, dynamic>> playerStats;
+  final List<StatsDTO> initialPlayerStats;
   final int userId;
-  final int matchId;
+  final int? matchId; // Nullable for new matches
   final int teamOneScore;
   final int teamTwoScore;
 
-
   const GameScreen({
     super.key,
-    required this.teamOneScore,
-    required this.teamTwoScore,
-    required this.matchId,
-    required this.userId,
     required this.team1,
     required this.team2,
     required this.startersTeam1,
     required this.startersTeam2,
     required this.gameMode,
-    required this.playerStats,
+    required this.initialPlayerStats,
+    required this.userId,
+    this.matchId,
+    required this.teamOneScore,
+    required this.teamTwoScore,
   });
 
+  @override
+  _GameScreenState createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
-  String? baseUrl = dotenv.env['API_BASE_URL'];
+class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
+  final LocationController _locationController = LocationController();
+  final MatchController _matchController = MatchController();
+  final PlayerController _playerController = PlayerController();
 
   final ScrollController _team1ScrollController = ScrollController();
   final ScrollController _team2ScrollController = ScrollController();
-  String? selectedPlayerJerseyNumber;
-  int? selectedPlayerId;
-  int? selectedTeam;
-  int? selectedTeamId;
+
   List<String> team1Actions = [];
   List<String> team2Actions = [];
-  Map<int, Map<String, int>> playerStats = {};
+
+  PlayerDTO? selectedPlayer;
+  TeamDTO? selectedTeam;
+  Map<int, StatsDTO> playerStats = {}; // Map player ID to StatsDTO
+  bool _hasSavedProgressOnPause = false;
+
   int teamOneScore = 0;
   int teamTwoScore = 0;
-  Future<String?>? token = loadToken();
-  bool _hasSavedProgress = false;
-  int? matchId;
-  int? selectedPlayerIndex;
+  int? currentMatchId;
 
   @override
   void initState() {
@@ -65,92 +78,124 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
 
+    // FIX: Conditionally add match_id_initial or convert to String if null
+    final Map<String, Object> screenParams = {
+      'game_mode': widget.gameMode,
+    };
+    if (widget.matchId != null) {
+      screenParams['match_id_initial'] = widget.matchId!; // It's an int, so it's fine
+    } else {
+      // Option 1: Don't send if null (cleaner)
+      // Option 2: Send as a string like 'new_match'
+      screenParams['match_id_initial'] = 'new_match'; // Example of Option 2
+    }
+
     FirebaseAnalytics.instance.logScreenView(
       screenName: 'GameScreen',
       screenClass: 'GameScreenState',
-      parameters: {'game_mode': widget.gameMode, 'match_id_initial': widget.matchId},
+      parameters: screenParams, // Use the prepared map
     );
 
     teamOneScore = widget.teamOneScore;
     teamTwoScore = widget.teamTwoScore;
-    matchId = widget.matchId == 0 ? null : widget.matchId;
+    currentMatchId = widget.matchId;
 
-    if (widget.playerStats.isNotEmpty) {
-      for (var statEntry in widget.playerStats) {
-        if (statEntry['playerId'] != null) {
-          playerStats[statEntry['playerId']] = Map<String, int>.from(statEntry);
-          playerStats[statEntry['playerId']]!['playerId'] = statEntry['playerId'];
+    _initializePlayerStats();
+  }
+
+  void _initializePlayerStats() {
+    if (widget.initialPlayerStats.isNotEmpty) {
+      for (var statDTO in widget.initialPlayerStats) {
+        if (statDTO.playerId != null) {
+          playerStats[statDTO.playerId!] = statDTO.copyWith(matchId: currentMatchId); // Ensure matchId is updated
+          debugPrint("Resuming stats for player ${statDTO.playerId}");
         }
       }
-      FirebaseAnalytics.instance.logEvent(name: 'game_resumed', parameters: {'match_id': matchId});
+      FirebaseAnalytics.instance.logEvent(name: 'game_resumed', parameters: {'match_id': currentMatchId});
     } else {
-      for (var player in widget.startersTeam1 + widget.startersTeam2) {
-        playerStats[player['id_player']] = {
-          "id_player": player['id_player'],
-          "three_pointer": 0, "two_pointer": 0, "one_pointer": 0,
-          "missed_three_pointer": 0, "missed_two_pointer": 0, "missed_one_pointer": 0,
-          "steal": 0, "turnover": 0, "block": 0, "assist": 0,
-          "offensive_rebound": 0, "defensive_rebound": 0, "foul": 0,
-        };
+      for (var player in widget.startersTeam1) {
+        playerStats[player.idPlayer!] = StatsDTO(
+            matchId: currentMatchId, // matchId can be null initially for new games
+            playerId: player.idPlayer!,
+            threePointers: 0, twoPointers: 0, onePointers: 0,
+            missedThreePointers: 0, missedTwoPointers: 0, missedOnePointers: 0,
+            steals: 0, turnovers: 0, blocks: 0, assists: 0,
+            offensiveRebounds: 0, defensiveRebounds: 0, fouls: 0,
+            playerJersey: player.jerseyNumber,
+            teamName: widget.team1.teamName
+        );
       }
+      for (var player in widget.startersTeam2) {
+        playerStats[player.idPlayer!] = StatsDTO(
+            matchId: currentMatchId, // matchId can be null initially for new games
+            playerId: player.idPlayer!,
+            threePointers: 0, twoPointers: 0, onePointers: 0,
+            missedThreePointers: 0, missedTwoPointers: 0, missedOnePointers: 0,
+            steals: 0, turnovers: 0, blocks: 0, assists: 0,
+            offensiveRebounds: 0, defensiveRebounds: 0, fouls: 0,
+            playerJersey: player.jerseyNumber,
+            teamName: widget.team2.teamName
+        );
+      }
+      FirebaseAnalytics.instance.logEvent(name: 'new_game_started', parameters: {'game_mode': widget.gameMode});
     }
   }
 
-  Color getBorderColor(String action) {
-    if (
-    action.contains("1 Point Made") ||
-        action.contains("2 Point Made") ||
-        action.contains("3 Point Made") ||
-        action == "one_pointer" ||
-        action == "two_pointer" ||
-        action == "three_pointer"
-    ) {
+  Color getBorderColor(String actionType) {
+    if (actionType.contains("Point") && !actionType.contains("Missed")) {
       return Colors.green;
-    } else if (
-    action.contains("Missed") ||
-        action.contains("Turnover") ||
-        action.contains("Foul") ||
-        action.contains("missed") ||
-        action.contains("turnover") ||
-        action.contains("foul")
-    ) {
+    } else if (actionType.contains("Missed") || actionType.contains("Turnover") || actionType.contains("Foul")) {
       return Colors.red;
     } else {
       return Colors.yellow;
     }
   }
 
-  void updateStat(int idPlayer, String statKey) {
+  void updateStat(int playerId, String statKey) {
     setState(() {
-      if (!playerStats.containsKey(idPlayer)) {
-        playerStats[idPlayer] = {
-          "id_player": idPlayer,
-          "three_pointer": 0,
-          "two_pointer": 0,
-          "one_pointer": 0,
-          "missed_three_pointer": 0,
-          "missed_two_pointer": 0,
-          "missed_one_pointer": 0,
-          "steal": 0,
-          "turnover": 0,
-          "block": 0,
-          "assist": 0,
-          "offensive_rebound": 0,
-          "defensive_rebound": 0,
-          "foul": 0,
-        };
+      if (!playerStats.containsKey(playerId)) {
+        playerStats[playerId] = StatsDTO(
+          matchId: currentMatchId,
+          playerId: playerId,
+          threePointers: 0, twoPointers: 0, onePointers: 0,
+          missedThreePointers: 0, missedTwoPointers: 0, missedOnePointers: 0,
+          steals: 0, turnovers: 0, blocks: 0, assists: 0,
+          offensiveRebounds: 0, defensiveRebounds: 0, fouls: 0,
+        );
       }
-      playerStats[idPlayer]![statKey] = (playerStats[idPlayer]![statKey] ?? 0) + 1;
-      FirebaseAnalytics.instance.logEvent( // Log de atualização de estatística
+
+      final currentStats = playerStats[playerId]!;
+      playerStats[playerId] = _incrementStat(currentStats, statKey);
+
+      FirebaseAnalytics.instance.logEvent(
         name: 'stat_updated',
         parameters: {
-          'player_id': idPlayer,
+          'player_id': playerId,
           'stat_key': statKey,
-          'new_value': playerStats[idPlayer]![statKey],
+          'new_value': playerStats[playerId]!.toJson()[statKey], // To get the value as String/num for the log
           'game_mode': widget.gameMode,
         },
       );
     });
+  }
+
+  StatsDTO _incrementStat(StatsDTO stats, String statKey) {
+    switch (statKey) {
+      case "threePointers": return stats.copyWith(threePointers: stats.threePointers + 1);
+      case "twoPointers": return stats.copyWith(twoPointers: stats.twoPointers + 1);
+      case "onePointers": return stats.copyWith(onePointers: stats.onePointers + 1);
+      case "missedThreePointers": return stats.copyWith(missedThreePointers: stats.missedThreePointers + 1);
+      case "missedTwoPointers": return stats.copyWith(missedTwoPointers: stats.missedTwoPointers + 1);
+      case "missedOnePointers": return stats.copyWith(missedOnePointers: stats.missedOnePointers + 1);
+      case "steals": return stats.copyWith(steals: stats.steals + 1);
+      case "turnovers": return stats.copyWith(turnovers: stats.turnovers + 1);
+      case "blocks": return stats.copyWith(blocks: stats.blocks + 1);
+      case "assists": return stats.copyWith(assists: stats.assists + 1);
+      case "offensiveRebounds": return stats.copyWith(offensiveRebounds: stats.offensiveRebounds + 1);
+      case "defensiveRebounds": return stats.copyWith(defensiveRebounds: stats.defensiveRebounds + 1);
+      case "fouls": return stats.copyWith(fouls: stats.fouls + 1);
+      default: return stats;
+    }
   }
 
   @override
@@ -164,283 +209,318 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.resumed) {
-      _hasSavedProgress = false;
-    }
     if (state == AppLifecycleState.paused) {
-      print("Estado mudou, ${state}");
-      await saveMatchProgress();
+      debugPrint("App life cycle state changed to: $state");
+      await _saveMatchProgress(isFinished: false);
+    } else if (state == AppLifecycleState.resumed) {
+      _hasSavedProgressOnPause = false;
     }
   }
 
-  void finishMatch() async {
+  Future<void> _finishMatch() async {
     FirebaseAnalytics.instance.logEvent(name: 'finish_match_button_pressed');
 
-    String? token = await loadToken();
-
-  print("Stats: ${playerStats.entries}");
-  List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
-    final stats = entry.value;
-    return {
-      "matchId": null,
-      "statsId": null,
-      "playerId": stats["id_player"],
-      "three_pointer": stats["three_pointer"] ?? 0,
-      "two_pointer": stats["two_pointer"] ?? 0,
-      "one_pointer": stats["one_pointer"] ?? 0,
-      "missed_three_pointer": stats["missed_three_pointer"] ?? 0,
-      "missed_two_pointer": stats["missed_two_pointer"] ?? 0,
-      "missed_one_pointer": stats["missed_one_pointer"] ?? 0,
-      "steal": stats["steal"] ?? 0,
-      "turnover": stats["turnover"] ?? 0,
-      "block": stats["block"] ?? 0,
-      "assist": stats["assist"] ?? 0,
-      "offensive_rebound": stats["offensive_rebound"] ?? 0,
-      "defensive_rebound": stats["defensive_rebound"] ?? 0,
-      "foul": stats["foul"] ?? 0
-    };
-  }).toList();
-
-    Map<String, dynamic>? locationData;
-    try {
-      locationData = await getCurrentLocation();
-      FirebaseAnalytics.instance.logEvent(name: 'location_fetched_for_match');
-    } catch (e) {
-      FirebaseAnalytics.instance.logEvent(name: 'location_fetch_failed', parameters: {'error': e.toString()});
-      print('Error getting location: $e');
-    }
-
-    double? latitude = locationData?['latitude'];
-    double? longitude = locationData?['longitude'];
-    String? placeName = locationData?['placeName'];
-
-  Map<String, dynamic> matchData = {
-    "idMatch": matchId,
-    "userId": widget.userId,
-    "matchDate": DateTime.now().toIso8601String(),
-    "teamOneScore": teamOneScore,
-    "teamTwoScore": teamTwoScore,
-    "teamOne": {
-      "id": widget.team1["id"],
-      "teamName": widget.team1["teamName"],
-      "logoPath": widget.team1["logoPath"],
-      "abbreviation": widget.team1["abbreviation"]
-    },
-    "teamTwo": {
-      "id": widget.team2["id"],
-      "teamName": widget.team2["teamName"],
-      "logoPath": widget.team2["logoPath"],
-      "abbreviation": widget.team2["abbreviation"]
-    },
-    "stats": statsList,
-    "location": {
-      "latitude": latitude,
-      "longitude": longitude,
-      "placeName": placeName
-    },
-    "finished": true,
-    "gamemode": widget.gameMode,
-    "startersTeam1": widget.startersTeam1,
-    "startersTeam2": widget.startersTeam2
-  };
-
-    if (token == null) {
-      print("Token is null!");
-      FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'token_null'});
+    if (currentMatchId == null) {
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Erro: ID da partida não encontrado para finalizar.',
+        backgroundColor: Colors.red.shade700,
+        textColor: Colors.white,
+        icon: Icons.error_outline,
+      );
       return;
     }
 
-  final response = await http.post(
-    Uri.parse("$baseUrl/match"),
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer $token"
-    },
-    body: jsonEncode(matchData),
-  );
-  if (response.statusCode == 201) {
-    try {
-      final responseBody = jsonDecode(response.body);
-      final newMatchId = responseBody;
-      if (newMatchId != null) {
-        setState(() {
-          matchId = newMatchId;
-          print(matchId);
-        });
-        FirebaseAnalytics.instance.logEvent(name: 'match_finished_successfully', parameters: {'match_id': matchId});
-        await Future.delayed(const Duration(seconds: 1, milliseconds: 50));
+    final bool success = await _matchController.finishMatch(currentMatchId!);
+    if (success) {
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Partida finalizada com sucesso!',
+        backgroundColor: Colors.green.shade700,
+        textColor: Colors.white,
+        icon: Icons.check_circle_outline,
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => MainScreen()),
+            (Route<dynamic> route) => false,
+      );
+    } else {
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Falha ao finalizar partida. Tente novamente.',
+        backgroundColor: Colors.red.shade700,
+        textColor: Colors.white,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  Future<void> _saveMatchProgress({required bool isFinished}) async {
+    // Skip saving if already saved on pause and not explicitly finishing
+    if (_hasSavedProgressOnPause && !isFinished) {
+      FirebaseAnalytics.instance.logEvent(name: 'save_progress_skipped_already_saved');
+      debugPrint("Progress has already been saved on pause.");
+      return;
+    }
+
+    FirebaseAnalytics.instance.logEvent(name: 'save_progress_attempt', parameters: {'is_finished': isFinished});
+
+    LocationDTO? locationDTO;
+    // Only fetch location data if the match is being finished
+    if (isFinished) {
+      try {
+        locationDTO = await _locationController.getCurrentLocationData();
+        if (locationDTO == null) {
+          PersistentSnackbar.show(
+            context: context,
+            message: 'Não foi possível obter a localização. Partida será salva sem localização.',
+            backgroundColor: Colors.orange.shade700,
+            textColor: Colors.white,
+            icon: Icons.warning_amber_rounded,
+            duration: const Duration(seconds: 4),
+          );
+        }
+        FirebaseAnalytics.instance.logEvent(name: 'location_fetched_for_match', parameters: {'status': locationDTO != null ? 'success' : 'failed'});
+      } catch (e) {
+        FirebaseAnalytics.instance.logEvent(name: 'location_fetch_failed', parameters: {'error': e.toString()});
+        debugPrint('Error getting location: $e');
+      }
+    }
+
+    // Prepare the list of StatsDTOs
+    final List<StatsDTO> currentStatsList = playerStats.values.map((stats) {
+      // Ensure matchId is set for each stat, using currentMatchId
+      return stats.copyWith(
+        matchId: currentMatchId,
+      );
+    }).toList();
+
+    // Create the MatchDTO for sending to the backend
+    final MatchDTO matchDTO = MatchDTO(
+      idMatch: currentMatchId,
+      appUserId: widget.userId,
+      matchDate: DateTime.now().toIso8601String().split('T')[0], // Date in YYYY-MM-DD format
+      teamOneScore: teamOneScore,
+      teamTwoScore: teamTwoScore,
+      teamOne: widget.team1,
+      teamTwo: widget.team2,
+      startersTeam1: widget.startersTeam1,
+      startersTeam2: widget.startersTeam2,
+      gameMode: widget.gameMode,
+      stats: currentStatsList,
+      location: locationDTO,
+      finished: isFinished,
+    );
+
+    // Call the MatchController to save or update the match
+    final int? newMatchId = await _matchController.saveOrUpdateMatch(matchDTO);
+
+    if (newMatchId != null) {
+      setState(() {
+        currentMatchId = newMatchId; // Update local matchId with the ID from backend
+        _hasSavedProgressOnPause = true; // Mark as saved to prevent immediate re-save on pause
+      });
+      FirebaseAnalytics.instance.logEvent(name: 'progress_saved_successfully', parameters: {'match_id': currentMatchId, 'is_finished': isFinished});
+      debugPrint("Match saved successfully. ID: $currentMatchId");
+
+      // Check if the match was finished (not just progress saved)
+      if (isFinished) {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Partida finalizada com sucesso!',
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
+        );
+        // Wait briefly for the Snackbar to show, then navigate
+        await Future.delayed(const Duration(seconds: 1));
+        // Navigate back to MainScreen and clear the navigation stack
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => MainScreen()),
               (Route<dynamic> route) => false,
         );
       } else {
-        print("MatchId is not in the response.");
-        FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'match_id_not_in_response'});
+        // If not finished, it's a progress save, show a less intrusive Snackbar
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Progresso salvo automaticamente!',
+          backgroundColor: Colors.blueGrey.shade700,
+          textColor: Colors.white,
+          icon: Icons.save_alt,
+          duration: const Duration(seconds: 2),
+        );
       }
-    } catch (e) {
-      print('Error decoding answer or finding matchId: $e');
-      FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'response_decode_error', 'error': e.toString()});
-    }
-  } else {
-    print("Error finishing match: ${response.statusCode}");
-    FirebaseAnalytics.instance.logEvent(name: 'finish_match_failed', parameters: {'reason': 'http_error', 'status_code': response.statusCode, 'response_body': response.body});
-  }
-}
-
-  Future<void> saveMatchProgress() async {
-    if (_hasSavedProgress) {
-      FirebaseAnalytics.instance.logEvent(name: 'save_progress_skipped_already_saved');
-      print("Progress has already been saved.");
-      return;
-    }
-    _hasSavedProgress = true;
-    FirebaseAnalytics.instance.logEvent(name: 'save_progress_attempt');
-
-    String? token = await loadToken();
-    print("Stats: ${playerStats.entries}");
-    List<Map<String, dynamic>> statsList = playerStats.entries.map((entry) {
-      final stats = entry.value;
-      return {
-        "matchId": null,
-        "statsId": null,
-        "playerId": stats["id_player"],
-        "three_pointer": stats["three_pointer"] ?? 0,
-        "two_pointer": stats["two_pointer"] ?? 0,
-        "one_pointer": stats["one_pointer"] ?? 0,
-        "missed_three_pointer": stats["missed_three_pointer"] ?? 0,
-        "missed_two_pointer": stats["missed_two_pointer"] ?? 0,
-        "missed_one_pointer": stats["missed_one_pointer"] ?? 0,
-        "steal": stats["steal"] ?? 0,
-        "turnover": stats["turnover"] ?? 0,
-        "block": stats["block"] ?? 0,
-        "assist": stats["assist"] ?? 0,
-        "offensive_rebound": stats["offensive_rebound"] ?? 0,
-        "defensive_rebound": stats["defensive_rebound"] ?? 0,
-        "foul": stats["foul"] ?? 0
-      };
-    }).toList();
-    Map<String, dynamic> matchData = {
-      "idMatch": matchId,
-      "userId": widget.userId,
-      "matchDate": DateTime.now().toIso8601String(),
-      "teamOneScore": teamOneScore,
-      "teamTwoScore": teamTwoScore,
-      "teamOne": {
-        "id": widget.team1["id"],
-        "teamName": widget.team1["teamName"],
-        "logoPath": widget.team1["logoPath"],
-        "abbreviation": widget.team1["abbreviation"]
-      },
-      "teamTwo": {
-        "id": widget.team2["id"],
-        "teamName": widget.team2["teamName"],
-        "logoPath": widget.team2["logoPath"],
-        "abbreviation": widget.team2["abbreviation"]
-      },
-      "stats": statsList,
-      "location": {
-        "latitude": null,
-        "longitude": null
-      },
-      "finished": false,
-      "gamemode": widget.gameMode,
-      "startersTeam1": widget.startersTeam1,
-      "startersTeam2": widget.startersTeam2
-    };
-    if (token == null) {
-      print("Token is null!");
-      FirebaseAnalytics.instance.logEvent(name: 'save_progress_failed', parameters: {'reason': 'token_null'});
-      return;
-    }
-    print("Stats sendo mandado para o backEnd: $matchData");
-    final response = await http.post(
-      Uri.parse('$baseUrl/match/save-progress'),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer $token"
-      },
-      body: jsonEncode(matchData),
-    );
-    if (response.statusCode == 200) {
-      final responseBody = jsonDecode(response.body);
-      final newMatchId = responseBody['matchId'];
-      if (newMatchId != null) {
-        setState(() {
-          matchId = newMatchId;
-        });
-        FirebaseAnalytics.instance.logEvent(name: 'progress_saved_successfully', parameters: {'match_id': matchId});
+    } else {
+      // Handle failure case
+      FirebaseAnalytics.instance.logEvent(name: 'progress_save_failed', parameters: {'is_finished': isFinished});
+      debugPrint("Error saving match progress.");
+      if (isFinished) {
+        // If it failed while trying to finish, show a specific error
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Falha ao finalizar partida. Tente novamente.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+        );
       } else {
-        print("MatchID was not in the response.");
-        FirebaseAnalytics.instance.logEvent(name: 'progress_save_failed', parameters: {'reason': 'match_id_not_in_response'});
+        // If it failed during automatic progress save
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Falha ao salvar progresso automaticamente.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+          duration: const Duration(seconds: 3),
+        );
       }
     }
-    else {
-      print("Error saving progress: ${response.statusCode}");
-      FirebaseAnalytics.instance.logEvent(name: 'progress_save_failed', parameters: {'reason': 'http_error', 'status_code': response.statusCode, 'response_body': response.body});
-    }
+  }
+  void updatePoints(int teamNumber, int points) {
+    setState(() {
+      if (selectedTeam != null) {
+        if (selectedTeam!.id == widget.team1.id) {
+          teamOneScore += points;
+        } else if (selectedTeam!.id == widget.team2.id) {
+          teamTwoScore += points;
+        }
+        FirebaseAnalytics.instance.logEvent(name: 'score_updated', parameters: {'team': teamNumber, 'points': points, 'team1_score': teamOneScore, 'team2_score': teamTwoScore});
+      } else {
+        debugPrint("Error: No team selected for scoring.");
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Por favor, selecione um jogador e seu time para pontuar!',
+          backgroundColor: Colors.orange.shade700,
+          textColor: Colors.white,
+          icon: Icons.warning_amber_rounded,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    });
   }
 
-  Widget substitutionButton({
-    required String imagePath,
-    required int teamId,
+  void addActionToPlayer(String actionDescription) {
+    setState(() {
+      if (selectedPlayer != null && selectedTeam != null) {
+        final displayString = "$actionDescription\n${selectedPlayer!.jerseyNumber}";
+        if (selectedTeam!.id == widget.team1.id) {
+          team1Actions.insert(0, displayString);
+          _team1ScrollController.animateTo(0.0, duration: Duration(milliseconds: 300), curve: Curves.easeOut,);
+        } else if (selectedTeam!.id == widget.team2.id) {
+          team2Actions.insert(0, displayString);
+          _team2ScrollController.animateTo(0.0, duration: Duration(milliseconds: 300), curve: Curves.easeOut,);
+        }
+      } else {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Por favor, selecione um jogador primeiro!',
+          backgroundColor: Colors.blueGrey.shade700,
+          textColor: Colors.white,
+          icon: Icons.info_outline,
+          duration: const Duration(seconds: 2),
+        );
+        FirebaseAnalytics.instance.logEvent(name: 'action_button_failed', parameters: {'reason': 'no_player_selected'});
+      }
+    });
+  }
+
+  void _performSubstitution(PlayerDTO enteringPlayer) {
+    FirebaseAnalytics.instance.logEvent(name: 'substitution_performed', parameters: {'entering_player_id': enteringPlayer.idPlayer, 'leaving_player_id': selectedPlayer!.idPlayer});
+    setState(() {
+      if (selectedTeam != null && selectedPlayer != null) {
+        final List<PlayerDTO> currentStarters = selectedTeam!.id == widget.team1.id
+            ? widget.startersTeam1
+            : widget.startersTeam2;
+
+        final index = currentStarters.indexWhere(
+              (p) => p.idPlayer == selectedPlayer!.idPlayer,
+        );
+
+        if (index != -1) {
+          currentStarters[index] = enteringPlayer;
+        }
+      }
+      selectedPlayer = null;
+      selectedTeam = null;
+    });
+
+    PersistentSnackbar.show(
+      context: context,
+      message: '${enteringPlayer.playerName} entrou em quadra!',
+      backgroundColor: Colors.blueGrey.shade700,
+      textColor: Colors.white,
+    );
+  }
+
+  Widget _substitutionButton({
     required BuildContext context,
-    required Function(Map<String, dynamic>) onPlayerSelected,
+    required TeamDTO currentTeam,
   }) {
     return GestureDetector(
       onTap: () async {
-        FirebaseAnalytics.instance.logEvent(name: 'substitution_button_tapped', parameters: {'team_id': teamId});
-        String? token = await loadToken();
-        try {
-          final response = await http.get(
-            Uri.parse('$baseUrl/player/team-players/$teamId'),
-            headers: {
-              'Authorization': 'Bearer $token',
+        if (selectedPlayer == null) {
+          PersistentSnackbar.show(
+            context: context,
+            message: 'Selecione um jogador para substituir!',
+            backgroundColor: Colors.blueGrey.shade700,
+            textColor: Colors.white,
+            icon: Icons.info_outline,
+            duration: const Duration(seconds: 2),
+          );
+          return;
+        }
+
+        FirebaseAnalytics.instance.logEvent(name: 'substitution_button_tapped', parameters: {'team_id': currentTeam.id});
+
+        final List<PlayerDTO> players = await _playerController.fetchPlayersByTeamId(currentTeam.id!);
+
+        if (players.isNotEmpty) {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.black87,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (_) {
+              return ListView.builder(
+                itemCount: players.length,
+                itemBuilder: (ctx, index) {
+                  final player = players[index];
+                  final currentStarters = selectedTeam!.id == widget.team1.id ? widget.startersTeam1 : widget.startersTeam2;
+                  if (currentStarters.any((p) => p.idPlayer == player.idPlayer)) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return ListTile(
+                    title: Text(
+                      player.jerseyNumber,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      player.playerName,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _performSubstitution(player);
+                    },
+                  );
+                },
+              );
             },
           );
-
-          if (response.statusCode == 200) {
-            List<dynamic> players = jsonDecode(response.body);
-            showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.black87,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              builder: (_) {
-                return ListView.builder(
-                  itemCount: players.length,
-                  itemBuilder: (ctx, index) {
-                    final player = players[index];
-                    return ListTile(
-                      title: Text(
-                        player['jerseyNumber'].toString(),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      subtitle: Text(
-                        player['playerName'] ?? '',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        onPlayerSelected(player);
-                      },
-                    );
-                  },
-                );
-              },
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error fetching players: ${response.statusCode}')),
-            );
-            FirebaseAnalytics.instance.logEvent(name: 'substitution_fetch_players_failed', parameters: {'team_id': teamId, 'http_status': response.statusCode});
-          }
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Unexpected error fetching players.')),
+        } else {
+          PersistentSnackbar.show(
+            context: context,
+            message: 'Não há jogadores disponíveis para substituição neste time.',
+            backgroundColor: Colors.blueGrey.shade700,
+            textColor: Colors.white,
+            icon: Icons.info_outline,
           );
-          FirebaseAnalytics.instance.logEvent(name: 'substitution_fetch_players_failed', parameters: {'team_id': teamId, 'error': e.toString()});
+          FirebaseAnalytics.instance.logEvent(name: 'substitution_fetch_players_failed', parameters: {'team_id': currentTeam.id, 'reason': 'no_players_available'});
         }
       },
       child: Container(
@@ -448,21 +528,31 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
         height: 60,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover),
+          image: const DecorationImage(image: AssetImage('assets/images/SubstitutionActionIcon.png'), fit: BoxFit.cover),
           border: Border.all(color: Colors.yellow, width: 1),
         ),
       ),
     );
   }
 
-  Widget scoreButton (String imagePath, String statKey, VoidCallback onPressed, int points) {
+  Widget _scoreButton(String imagePath, String statKey, int points) {
     return GestureDetector(
       onTap: () {
-        if (selectedPlayerId != null) {
-          updateStat(selectedPlayerId!, statKey);
+        if (selectedPlayer != null && selectedTeam != null) {
+          updateStat(selectedPlayer!.idPlayer!, statKey);
+          updatePoints(selectedTeam!.id!, points);
+          addActionToPlayer("${points} Point Made");
+        } else {
+          PersistentSnackbar.show(
+            context: context,
+            message: 'Por favor, selecione um jogador primeiro!',
+            backgroundColor: Colors.blueGrey.shade700,
+            textColor: Colors.white,
+            icon: Icons.info_outline,
+            duration: const Duration(seconds: 2),
+          );
+          FirebaseAnalytics.instance.logEvent(name: 'score_button_failed', parameters: {'reason': 'no_player_selected'});
         }
-        onPressed();
-        updatePoints(selectedTeam!, points);
       },
       child: Container(
         decoration: BoxDecoration(
@@ -474,18 +564,23 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 
-  Widget actionButton (String imagePath, String statKey, VoidCallback onPressed) {
+  Widget _actionButton(String imagePath, String statKey, String actionDescription) {
     return GestureDetector(
       onTap: () {
-        if (selectedPlayerId != null) {
-          updateStat(selectedPlayerId!, statKey);
+        if (selectedPlayer != null && selectedTeam != null) {
+          updateStat(selectedPlayer!.idPlayer!, statKey);
+          addActionToPlayer(actionDescription);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please select a player first!')),
+          PersistentSnackbar.show(
+            context: context,
+            message: 'Por favor, selecione um jogador primeiro!',
+            backgroundColor: Colors.blueGrey.shade700,
+            textColor: Colors.white,
+            icon: Icons.info_outline,
+            duration: const Duration(seconds: 2),
           );
           FirebaseAnalytics.instance.logEvent(name: 'action_button_failed', parameters: {'reason': 'no_player_selected'});
         }
-        onPressed();
       },
       child: Container(
         decoration: BoxDecoration(
@@ -497,70 +592,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 
-  void substitution(Map<String, dynamic> enteringPlayer) {
-    FirebaseAnalytics.instance.logEvent(name: 'substitution_performed', parameters: {'entering_player_id': enteringPlayer['id'], 'leaving_player_id': selectedPlayerId});
-    setState(() {
-      if (selectedTeam == 1) {
-        final index = widget.startersTeam1.indexWhere(
-              (player) => player['id_player'] == selectedPlayerId,
-        );
-        print("INDEX : $index");
-        if (index != -1) {
-          widget.startersTeam1[index] = enteringPlayer;
-        }
-      } else if (selectedTeam == 2) {
-        final index = widget.startersTeam2.indexWhere(
-              (player) => player['id_player'] == selectedPlayerId,
-        );
-        if (index != -1) {
-          widget.startersTeam2[index] = enteringPlayer;
-        }
-      }
-      selectedPlayerId = null;
-      selectedPlayerJerseyNumber = null;
-      selectedTeam = null;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("${enteringPlayer['playerName']} is in the court!")),
-    );
-  }
-
-  void addActionToPlayer(String action) {
-    setState(() {
-      if (selectedTeam == 1 && selectedPlayerId != null) {
-        team1Actions.insert(0, "$action\n${selectedPlayerJerseyNumber!}");
-        Future.delayed(Duration(milliseconds: 100), () {
-          _team1ScrollController.animateTo(
-            0.0,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        });
-      } else if (selectedTeam == 2 && selectedPlayerId != null) {
-        team2Actions.insert(0, "$action\n${selectedPlayerJerseyNumber!}");
-        Future.delayed(Duration(milliseconds: 100), () {
-          _team2ScrollController.animateTo(
-            0.0,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        });
-      }
-    });
-  }
-
-  void updatePoints(int team, int points){
-    team = selectedTeam!;
-    if (team == 1){
-      teamOneScore += points;
-    } else {
-      teamTwoScore += points;
-    }
-    FirebaseAnalytics.instance.logEvent(name: 'score_updated', parameters: {'team': team, 'points': points, 'team1_score': teamOneScore, 'team2_score': teamTwoScore});
-  }
-
-  Widget optionsButton (String imagePath, VoidCallback onPressed) {
+  Widget _optionsButton(String imagePath, VoidCallback onPressed) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -572,20 +604,20 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 
-  void showExtraMenu() {
+  void _showExtraMenu() {
     FirebaseAnalytics.instance.logEvent(name: 'extra_menu_opened');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black.withOpacity(0.8),
       builder: (BuildContext context) {
         return Container(
-          padding: EdgeInsets.all(10),
+          padding: const EdgeInsets.all(10),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.menu_book, color: Colors.white),
-                title: Text("Legend", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.menu_book, color: Colors.white),
+                title: const Text("Legenda", style: TextStyle(color: Colors.white)),
                 onTap: () {
                   FirebaseAnalytics.instance.logEvent(name: 'legend_menu_item_clicked');
                   Navigator.pop(context);
@@ -594,7 +626,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                     builder: (_) => Dialog(
                       backgroundColor: Colors.black.withOpacity(0.6),
                       child: Container(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: Image.asset(
                           'assets/images/LegendsImage.png',
                           fit: BoxFit.contain,
@@ -605,18 +637,18 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                 },
               ),
               ListTile(
-                leading: Icon(Icons.flag, color: Colors.white),
-                title: Text("Finish Match", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.flag, color: Colors.white),
+                title: const Text("Finalizar Partida", style: TextStyle(color: Colors.white)),
                 onTap: () {
                   FirebaseAnalytics.instance.logEvent(name: 'finish_match_menu_item_clicked');
                   Navigator.pop(context);
-                  finishMatch();
+                  _saveMatchProgress(isFinished: true);
                 },
               ),
               ListTile(
-                leading: Icon(Icons.exit_to_app, color: Colors.red),
-                title: Text(
-                  "Exit Without Saving",
+                leading: const Icon(Icons.exit_to_app, color: Colors.red),
+                title: const Text(
+                  "Sair Sem Salvar",
                   style: TextStyle(color: Colors.red),
                 ),
                 onTap: () {
@@ -626,27 +658,28 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: Text("Are you sure?"),
-                        content: Text("All unsaved stats will be lost."),
+                        title: const Text("Tem certeza?"),
+                        content: const Text("Todas as estatísticas não salvas serão perdidas."),
                         actions: [
                           TextButton(
                             onPressed: () {
                               FirebaseAnalytics.instance.logEvent(name: 'exit_without_saving_canceled');
                               Navigator.pop(context);
                             },
-                            child: Text("Cancel", style: TextStyle(color: Colors.white)),
+                            child: const Text("Cancelar", style: TextStyle(color: Colors.white)),
                           ),
                           TextButton(
                             onPressed: () {
                               FirebaseAnalytics.instance.logEvent(name: 'exit_without_saving_confirmed');
                               Navigator.pop(context);
+                              SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
                               Navigator.pushAndRemoveUntil(
                                 context,
                                 MaterialPageRoute(builder: (context) => MainScreen()),
                                     (Route<dynamic> route) => false,
                               );
                             },
-                            child: Text("Exit", style: TextStyle(color: Colors.red)),
+                            child: const Text("Sair", style: TextStyle(color: Colors.red)),
                           ),
                         ],
                       );
@@ -661,8 +694,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
     );
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([
@@ -670,213 +701,216 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver{
       DeviceOrientation.landscapeLeft,
     ]);
 
-    Widget buildActionCenter(bool isMobile) {
-      return Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.0,
-            colors: [
-              Color(0xFFFF4500),
-              Color(0xFF84442E),
-              Color(0xFF3A2E2E),
-            ],
-            stops: [0.0, 0.2, 0.7],
-          ),
-        ),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 40,
-              child: Center(
-                child: Text(
-                  "$teamOneScore X $teamTwoScore",
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ),
-            ),
-            SizedBox(height: 10),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: isMobile ? 4 : 3,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                padding: EdgeInsets.zero,
-                childAspectRatio: 1.5,
-                children: [
-                  scoreButton('assets/images/1PointActionIcon.png', "one_pointer", () => addActionToPlayer("1 Point Made"), 1),
-                  scoreButton('assets/images/2PointActionIcon.png', "two_pointer", () => addActionToPlayer("2 Point Made"), 2),
-                  scoreButton('assets/images/3PointActionIcon.png', "three_pointer", () => addActionToPlayer("3 Point Made"), 3),
-                  actionButton('assets/images/1PointMissedActionIcon.png', "missed_one_pointer", () => addActionToPlayer("1 Point Missed")),
-                  actionButton('assets/images/2PointMissedActionIcon.png', "missed_two_pointer", () => addActionToPlayer("2 Point Missed")),
-                  actionButton('assets/images/3PointMissedActionIcon.png', "missed_three_pointer", () => addActionToPlayer("3 Point Missed")),
-                  actionButton('assets/images/AssistActionIcon.png', "assist", () => addActionToPlayer("Assist")),
-                  actionButton('assets/images/BlockActionIcon.png', "block", () => addActionToPlayer("Block")),
-                  actionButton('assets/images/StealActionIcon.png', "steal", () => addActionToPlayer("Steal")),
-                  actionButton('assets/images/OffensiveReboundActionIcon.png', "offensive_rebound", () => addActionToPlayer("O. Rebound")),
-                  actionButton('assets/images/DefensiveReboundActionIcon.png', "defensive_rebound", () => addActionToPlayer("D. Rebound")),
-                  actionButton('assets/images/TurnOverActionIcon.png', "turnover", () => addActionToPlayer("Turnover")),
-                  actionButton('assets/images/FoulActionIcon.png', "foul", () => addActionToPlayer("Foul")),
-                  optionsButton('assets/images/OptionsIcon.png', showExtraMenu),
-                  substitutionButton(
-                    imagePath: 'assets/images/SubstitutionActionIcon.png',
-                    teamId: selectedTeam == 1 ? widget.team1["id"] : widget.team2["id"],
-                    context: context,
-                    onPlayerSelected: (player) {
-                      substitution(player);
-                    },
-                  )
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    //Build action list
-    Widget buildActionList(List actions, ScrollController controller) {
-      return Expanded(
-        flex: 5,
-        child: Container(
-          color: Colors.black,
-          child: ListView.builder(
-            controller: controller,
-            padding: EdgeInsets.zero,
-            itemCount: actions.length,
-            itemBuilder: (context, index) {
-              String action = actions[index];
-              Color borderColor = getBorderColor(action);
-
-              return Container(
-                margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                padding: EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(color: Colors.orange, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    action.replaceAll("Offensive Rebound", "O.Rebound").replaceAll("Defensive Rebound", "D.Rebound"),
-                    style: TextStyle(fontSize: 14, color: borderColor, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    }
-    //Build players list
-    Widget buildPlayers(List starters, int teamNumber) {
-      return Expanded(
-        flex: 4,
-        child: Container(
-          color: Color(0xFF3A2E2E),
-          child: Column(
-            children: List.generate(
-              widget.gameMode == "5x5" ? 5 : widget.gameMode == "3x3" ? 3 : 1,
-                  (index) {
-                String jerseyNumber = starters[index]['jerseyNumber'];
-                int playerId = starters[index]['id_player'];
-                bool isSelected = selectedPlayerId == playerId && selectedTeam == teamNumber;
-                return GestureDetector(
-                  onTap: () {
-                    print("Id: $playerId\nJersey Number: $jerseyNumber");
-                    setState(() {
-                      selectedPlayerId = playerId;
-                      selectedPlayerJerseyNumber = jerseyNumber;
-                      selectedTeam = teamNumber;
-                    });
-                  },
-                  child: Container(
-                    color: isSelected ? Color(0xFFF6B712) : Colors.transparent,
-                    padding: EdgeInsets.all(12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            "$jerseyNumber",
-                            style: TextStyle(color: Colors.white, fontSize: 37),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        if (isSelected) ...[
-                          SizedBox(width: 8),
-                          Image.asset("assets/images/basketball.png", width: 40, height: 40),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      );
-    }
-    //Build team column
-    Widget buildTeamColumn(Map team, List starters, List actions, ScrollController controller, int teamNumber) {
-      return Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(8.0),
-            color: Color(0xFF3A2E2E),
-            child: Text(
-              "${team['abbreviation']}",
-              style: TextStyle(
-                color: Color(0xFFF6B712),
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: teamNumber == 1
-                  ? [buildPlayers(starters, teamNumber), buildActionList(actions, controller)]
-                  : [buildActionList(actions, controller), buildPlayers(starters, teamNumber)],
-            ),
-          ),
-        ],
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 800;
+        final isMobileLayout = constraints.maxWidth < 800;
 
-        if (isMobile) {
-          return Scaffold(
-            body: Column(
-              children: [
-                Expanded(child: buildTeamColumn(widget.team1, widget.startersTeam1, team1Actions, _team1ScrollController, 1)),
-                SizedBox(
-                  height: 350,
-                  child: buildActionCenter(isMobile),
-                ),
-                Expanded(child: buildTeamColumn(widget.team2, widget.startersTeam2, team2Actions, _team2ScrollController, 2)),
-              ],
+        Widget buildActionCenter(bool isMobile) {
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.0,
+                colors: [
+                  Color(0xFFFF4500),
+                  Color(0xFF84442E),
+                  Color(0xFF3A2E2E),
+                ],
+                stops: [0.0, 0.2, 0.7],
+              ),
             ),
-          );
-        } else {
-          return Scaffold(
-            body: Row(
+            child: Column(
               children: [
-                Expanded(child: buildTeamColumn(widget.team1, widget.startersTeam1, team1Actions, _team1ScrollController, 1)),
-                Expanded(flex: 1, child: buildActionCenter(isMobile)),
-                Expanded(child: buildTeamColumn(widget.team2, widget.startersTeam2, team2Actions, _team2ScrollController, 2)),
+                SizedBox(
+                  height: 40,
+                  child: Center(
+                    child: Text(
+                      "$teamOneScore X $teamTwoScore",
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: isMobile ? 4 : 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    padding: EdgeInsets.zero,
+                    childAspectRatio: 1.5,
+                    children: [
+                      _scoreButton('assets/images/1PointActionIcon.png', "onePointers", 1),
+                      _scoreButton('assets/images/2PointActionIcon.png', "twoPointers", 2),
+                      _scoreButton('assets/images/3PointActionIcon.png', "threePointers", 3),
+                      _actionButton('assets/images/1PointMissedActionIcon.png', "missedOnePointers", "1 Ponto Perdido"),
+                      _actionButton('assets/images/2PointMissedActionIcon.png', "missedTwoPointers", "2 Pontos Perdidos"),
+                      _actionButton('assets/images/3PointMissedActionIcon.png', "missedThreePointers", "3 Pontos Perdidos"),
+                      _actionButton('assets/images/AssistActionIcon.png', "assists", "Assistência"),
+                      _actionButton('assets/images/BlockActionIcon.png', "blocks", "Toco"),
+                      _actionButton('assets/images/StealActionIcon.png', "steals", "Roubada"),
+                      _actionButton('assets/images/OffensiveReboundActionIcon.png', "offensiveRebounds", "R. Ofensivo"),
+                      _actionButton('assets/images/DefensiveReboundActionIcon.png', "defensiveRebounds", "R. Defensivo"),
+                      _actionButton('assets/images/TurnOverActionIcon.png', "turnovers", "Turnover"),
+                      _actionButton('assets/images/FoulActionIcon.png', "fouls", "Falta"),
+                      _optionsButton('assets/images/OptionsIcon.png', _showExtraMenu),
+                      _substitutionButton(
+                        context: context,
+                        currentTeam: selectedTeam?.id == widget.team1.id ? widget.team1 : widget.team2,
+                      )
+                    ],
+                  ),
+                ),
               ],
             ),
           );
         }
+
+        Widget buildActionList(List<String> actions, ScrollController controller) {
+          return Expanded(
+            flex: 5,
+            child: Container(
+              color: Colors.black,
+              child: ListView.builder(
+                controller: controller,
+                padding: EdgeInsets.zero,
+                itemCount: actions.length,
+                itemBuilder: (context, index) {
+                  String action = actions[index];
+                  Color borderColor = getBorderColor(action.split('\n')[0]);
+
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: Colors.orange, width: 2),
+                    ),
+                    child: Center(
+                      child: Text(
+                        action,
+                        style: TextStyle(fontSize: 14, color: borderColor, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+        Widget buildPlayers(List<PlayerDTO> starters, TeamDTO team) {
+          return Expanded(
+            flex: 4,
+            child: Container(
+              color: const Color(0xFF3A2E2E),
+              child: Column(
+                children: List.generate(
+                  widget.gameMode == "5x5" ? 5 : widget.gameMode == "3x3" ? 3 : 1,
+                      (index) {
+                    if (index >= starters.length) {
+                      return const SizedBox.shrink();
+                    }
+                    PlayerDTO player = starters[index];
+                    bool isSelected = selectedPlayer?.idPlayer == player.idPlayer && selectedTeam?.id == team.id;
+
+                    return GestureDetector(
+                      onTap: () {
+                        debugPrint("Player selected: ID ${player.idPlayer}, Jersey: ${player.jerseyNumber}");
+                        setState(() {
+                          selectedPlayer = player;
+                          selectedTeam = team;
+                        });
+                      },
+                      child: Container(
+                        color: isSelected ? const Color(0xFFF6B712) : Colors.transparent,
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                player.jerseyNumber,
+                                style: const TextStyle(color: Colors.white, fontSize: 37),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 8),
+                              Image.asset("assets/images/basketball.png", width: 40, height: 40),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        }
+        Widget buildTeamColumn(TeamDTO team, List<PlayerDTO> starters, List<String> actions, ScrollController controller, int teamNumber) {
+          return Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8.0),
+                color: const Color(0xFF3A2E2E),
+                child: Text(
+                  team.abbreviation,
+                  style: const TextStyle(
+                    color: Color(0xFFFFCC80),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: teamNumber == 1
+                      ? [buildPlayers(starters, team), buildActionList(actions, controller)]
+                      : [buildActionList(actions, controller), buildPlayers(starters, team)],
+                ),
+              ),
+            ],
+          );
+        }
+
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (didPop) async {
+            if (didPop) return;
+            _showExtraMenu();
+          },
+          child: Scaffold(
+            body: OrientationBuilder(
+              builder: (context, orientation) {
+                final isLandscape = orientation == Orientation.landscape;
+
+                if (isLandscape) {
+                  return Row(
+                    children: [
+                      Expanded(child: buildTeamColumn(widget.team1, widget.startersTeam1, team1Actions, _team1ScrollController, 1)),
+                      Expanded(flex: 1, child: buildActionCenter(isMobileLayout)),
+                      Expanded(child: buildTeamColumn(widget.team2, widget.startersTeam2, team2Actions, _team2ScrollController, 2)),
+                    ],
+                  );
+                } else {
+                  return Center(
+                    child: Text(
+                      'Por favor, gire seu dispositivo para o modo paisagem para jogar.',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.orange),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+        );
       },
     );
   }
 }
-

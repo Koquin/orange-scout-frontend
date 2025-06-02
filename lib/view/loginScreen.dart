@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-
-import 'package:OrangeScoutFE/controller/authController.dart';
+import 'package:OrangeScoutFE/controller/auth_controller.dart';
 import 'package:OrangeScoutFE/view/registerScreen.dart';
-
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart';
+import '../dto/auth_result_dto.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  final _formKey = GlobalKey<FormState>(); // Added for form validation
 
   final AuthController _authController = AuthController();
 
@@ -29,6 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
         screenClass: 'LoginScreenState',
       );
     });
+    // Ensure portrait orientation is set as soon as possible for this screen
+    _setPortraitOrientation();
   }
 
   @override
@@ -38,53 +41,67 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _login() async {
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text.trim();
+  void _setPortraitOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
 
-    if (email.isEmpty || password.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill in all fields')),
-        );
-      }
+  Future<void> _login() async {
+    // Validate form fields first
+    if (!_formKey.currentState!.validate()) {
       FirebaseAnalytics.instance.logEvent(
-        name: 'login_attempt',
+        name: 'login_attempt_failed',
         parameters: {
-          'status': 'failed',
-          'reason': 'empty_fields',
-          'email_provided': email.isNotEmpty,
-          'password_provided': password.isNotEmpty,
+          'reason': 'form_validation_failed',
         },
+      );
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Por favor, preencha todos os campos corretamente.',
+        backgroundColor: Colors.red.shade700,
+        textColor: Colors.white,
+        icon: Icons.error_outline,
+        duration: const Duration(seconds: 3),
       );
       return;
     }
+
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
 
     setState(() {
       _isLoading = true;
     });
 
-    final LoginResult result = await _authController.loginUser(email, password);
+    final AuthResult result = await _authController.loginUser(email, password);
 
     if (mounted) {
       if (result.success) {
         Navigator.pushReplacementNamed(context, '/main');
 
         FirebaseAnalytics.instance.logEvent(
-          name: 'login_attempt',
+          name: 'login_attempt_success',
           parameters: {
-            'status': 'success',
+            'email_hash': email.hashCode, // Log hash for privacy
           },
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Unknown login error')),
+        // Use the userMessage from AuthResult for display
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Erro desconhecido ao fazer login.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+          duration: const Duration(seconds: 4),
         );
         FirebaseAnalytics.instance.logEvent(
-          name: 'login_attempt',
+          name: 'login_attempt_failed',
           parameters: {
-            'status': 'failed',
-            'reason': result.errorMessage ?? 'unknown_reason',
+            'reason': result.errorMessage ?? 'unknown_backend_error',
+            'user_message': result.userMessage ?? 'N/A',
           },
         );
       }
@@ -95,16 +112,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Widget customButton({required String text, required VoidCallback onPressed}) {
+  Widget _buildCustomButton({required String text, required VoidCallback onPressed}) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFF9800),
+        backgroundColor: const Color(0xFFFF9800), // Orange primary color
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
         elevation: 5,
+        minimumSize: Size(MediaQuery.of(context).size.width * 0.8, 50), // Ensure button has consistent width
       ),
       child: _isLoading
           ? const CircularProgressIndicator(color: Colors.white)
@@ -119,12 +137,57 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // --- Input Field Helper Widget ---
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required String labelText,
+    required IconData icon,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+  }) {
+    return SizedBox(
+      height: 60, // Increased height for better tap target
+      width: MediaQuery.of(context).size.width * 0.8,
+      child: TextFormField( // Changed to TextFormField for validation
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        obscureText: obscureText,
+        validator: validator, // Add validator
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: const Color(0xFFF57C00).withOpacity(0.7),
+          hintText: hintText,
+          hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
+          labelText: labelText,
+          labelStyle: const TextStyle(color: Colors.white70),
+          prefixIcon: Icon(icon, color: const Color(0xFFFFCC80)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder( // Custom error border
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 1.5),
+          ),
+          focusedErrorBorder: OutlineInputBorder( // Custom focused error border
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 15), // Adjusted padding
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    // Orientation is set in initState, no need to set it again in build
+    _setPortraitOrientation();
 
     final screenHeight = MediaQuery.of(context).size.height;
     final keyboardSpace = MediaQuery.of(context).viewInsets.bottom;
@@ -154,103 +217,84 @@ class _LoginScreenState extends State<LoginScreen> {
               minHeight: contentHeight,
             ),
             child: IntrinsicHeight(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(top: screenHeight * 0.1),
-                    child: Image.asset(
-                      'assets/images/OrangeScoutLogo.png',
-                      width: MediaQuery.of(context).size.width * 0.6,
-                      height: MediaQuery.of(context).size.width * 0.6 * (250 / 410),
-                      fit: BoxFit.contain,
+              child: Form( // Wrap with Form for validation
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(top: screenHeight * 0.1),
+                      child: Image.asset(
+                        'assets/images/OrangeScoutLogo.png',
+                        width: MediaQuery.of(context).size.width * 0.6,
+                        height: MediaQuery.of(context).size.width * 0.6 * (250 / 410),
+                        fit: BoxFit.contain,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    height: 50,
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    child: TextField(
+                    const SizedBox(height: 30), // Increased spacing
+                    _buildTextField(
                       controller: _emailController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
-                        hintText: "Email",
-                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                        labelText: "Email Address",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon: const Icon(Icons.email, color: Color(0xFFFFCC80)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
-                      ),
+                      hintText: "Email",
+                      labelText: "Endereço de Email",
+                      icon: Icons.email,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor, insira seu email.';
+                        }
+                        // Basic email format validation
+                        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                          return 'Formato de email inválido.';
+                        }
+                        return null;
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  SizedBox(
-                    height: 50,
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    child: TextField(
+                    const SizedBox(height: 15),
+                    _buildTextField(
                       controller: _passwordController,
-                      style: const TextStyle(color: Colors.white),
+                      hintText: "Senha",
+                      labelText: "Senha",
+                      icon: Icons.lock,
                       obscureText: true,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF57C00).withOpacity(0.7),
-                        hintText: "Password",
-                        hintStyle: const TextStyle(color: Color(0xFFFFCC80)),
-                        labelText: "Password",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon: const Icon(Icons.lock, color: Color(0xFFFFCC80)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor, insira sua senha.';
+                        }
+                        if (value.length < 6) {
+                          return 'A senha deve ter no mínimo 6 caracteres.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 30), // Increased spacing
+                    _buildCustomButton(
+                      text: "Entrar",
+                      onPressed: _isLoading ? () {} : _login,
+                    ),
+                    const SizedBox(height: 25),
+                    GestureDetector(
+                      onTap: () {
+                        FirebaseAnalytics.instance.logEvent(
+                          name: 'navigate_to_register_clicked',
+                        );
+                        // Using pushReplacement is generally better for navigation flows like login/register
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => RegisterScreen()),
+                        );
+                      },
+                      child: const Text(
+                        "Não tenho uma conta",
+                        style: TextStyle(
+                          color: Colors.blueAccent,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w600,
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: 30),
-                  customButton(
-                    text: "Login",
-                    onPressed: _isLoading ? () {} : _login,
-                  ),
-                  const SizedBox(height: 25),
-                  GestureDetector(
-                    onTap: () {
-                      FirebaseAnalytics.instance.logEvent(
-                        name: 'navigate_to_register_clicked',
-                      );
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => RegisterScreen()),
-                      );
-                    },
-                    child: const Text(
-                      "I don't have an account",
-                      style: TextStyle(
-                        color: Colors.blueAccent,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: screenHeight * 0.05),
-                ],
+                    SizedBox(height: screenHeight * 0.05),
+                  ],
+                ),
               ),
             ),
           ),

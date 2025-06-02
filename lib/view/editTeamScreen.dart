@@ -1,10 +1,20 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:OrangeScoutFE/view/createTeamScreen.dart';
-import 'package:OrangeScoutFE/controller/playerController.dart';
-import 'package:OrangeScoutFE/controller/teamController.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:OrangeScoutFE/view/createTeamScreen.dart';
+// Import your DTOs
+import 'package:OrangeScoutFE/dto/team_dto.dart';
+import 'package:OrangeScoutFE/dto/player_dto.dart'; // Import PlayerDTO
+
+// Import your controllers
+import 'package:OrangeScoutFE/controller/player_controller.dart';
+import 'package:OrangeScoutFE/controller/team_controller.dart';
+
+// Import your utility
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart';
 
 
 class EditTeamScreen extends StatefulWidget {
@@ -17,15 +27,28 @@ class EditTeamScreen extends StatefulWidget {
 }
 
 class _EditTeamScreenState extends State<EditTeamScreen> {
-  List<Map<String, dynamic>> players = [];
+  // CORREÇÃO: Mude a lista para PlayerDTO
+  List<PlayerDTO> players = [];
   bool isLoading = true;
+  bool _hasError = false; // Novo: Para erros críticos de carregamento
 
   final PlayerController _playerController = PlayerController();
   final TeamController _teamController = TeamController();
 
+  // Variáveis para edição de detalhes do time (se forem editadas nesta tela)
+  final TextEditingController _teamNameController = TextEditingController();
+  final TextEditingController _abbreviationController = TextEditingController();
+  String? _logoPath; // Caminho da logo
+  File? _selectedImage; // Imagem selecionada para upload
+  bool _isFetchingDetails = false; // Para controlar o carregamento dos detalhes do time
+
+  final String fallbackImage = "assets/images/TeamShieldIcon-cutout.png"; // Garanta que esta variável seja acessível globalmente ou no estado
+
+
   @override
   void initState() {
     super.initState();
+    _setPortraitOrientation();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirebaseAnalytics.instance.logScreenView(
         screenName: 'EditTeamPlayersScreen',
@@ -33,85 +56,187 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         parameters: {'team_id': widget.teamId},
       );
     });
+    // Chamadas para carregar detalhes do time e jogadores
+    _fetchTeamDetails(); // Para preencher nome/logo/abrev. (se editável nesta tela)
     _fetchPlayers();
   }
 
-  Future<void> _pickImage() async {
-    FirebaseAnalytics.instance.logEvent(name: 'pick_image_button_tapped');
-    final ImagePicker picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-      });
-      FirebaseAnalytics.instance.logEvent(name: 'image_picked_successfully');
-    } else {
-      FirebaseAnalytics.instance.logEvent(name: 'image_pick_canceled');
-    }
+  @override
+  void dispose() {
+    _teamNameController.dispose();
+    _abbreviationController.dispose();
+    super.dispose();
   }
+
+  // Garante orientação de retrato para esta tela
+  void _setPortraitOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  /// Busca os detalhes do time existente para preencher o formulário (se necessário para edição de detalhes).
+  /// Esta lógica foi consolidada no CreateTeamScreen para evitar duplicação,
+  /// mas se EditTeamScreen também tiver campos de nome/logo, a lógica é assim.
+  Future<void> _fetchTeamDetails() async {
+    setState(() {
+      _isFetchingDetails = true;
+      isLoading = true; // Para desabilitar tudo enquanto carrega
+    });
+    FirebaseAnalytics.instance.logEvent(name: 'fetch_team_details_attempt_edit_screen', parameters: {'team_id': widget.teamId});
+    FirebaseCrashlytics.instance.log('Tentando buscar detalhes do time para edição: ${widget.teamId}');
+
+    final TeamDTO? fetchedTeamData = await _teamController.fetchTeamDetails(widget.teamId);
+
+    if (mounted) {
+      if (fetchedTeamData != null) {
+        // Preencher controladores com os dados do time
+        _teamNameController.text = fetchedTeamData.teamName;
+        _abbreviationController.text = fetchedTeamData.abbreviation;
+        _logoPath = fetchedTeamData.logoPath;
+        if (_logoPath != null && (_logoPath!.startsWith('/data/') || _logoPath!.startsWith('file://') || File(_logoPath!).existsSync())) {
+          _selectedImage = File(_logoPath!);
+        } else {
+          _selectedImage = null;
+        }
+        FirebaseAnalytics.instance.logEvent(name: 'team_details_fetched_success_edit_screen', parameters: {'team_id': widget.teamId});
+      } else {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Falha ao carregar detalhes do time ou time não encontrado.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+        );
+        FirebaseAnalytics.instance.logEvent(name: 'fetch_team_details_failed_edit_screen', parameters: {'team_id': widget.teamId, 'reason': 'not_found'});
+        Navigator.pop(context); // Volta se não conseguir carregar os detalhes
+      }
+    }
+    setState(() {
+      _isFetchingDetails = false;
+      isLoading = false; // Reabilita a UI
+    });
+  }
+
 
   Future<void> _fetchPlayers() async {
-    setState(() => isLoading = true);
-    List<dynamic> fetchedPlayers = await _playerController.fetchPlayersByTeamId(widget.teamId);
-
     setState(() {
-      players = fetchedPlayers.map((p) => Map<String, dynamic>.from(p)).toList();
-      isLoading = false;
+      isLoading = true;
+      _hasError = false; // Reseta o estado de erro
     });
+    FirebaseAnalytics.instance.logEvent(name: 'fetch_players_for_team_attempt', parameters: {'team_id': widget.teamId});
+    FirebaseCrashlytics.instance.log('Tentando buscar jogadores para o time: ${widget.teamId}.');
 
-    if (fetchedPlayers.isEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No players found for this team. Add some!')),
-      );
+    try {
+      // CORREÇÃO: O controlador já retorna List<PlayerDTO>
+      List<PlayerDTO> fetchedPlayers = await _playerController.fetchPlayersByTeamId(widget.teamId);
+
+      setState(() {
+        players = fetchedPlayers; // Atribui diretamente a lista de PlayerDTOs
+        isLoading = false;
+      });
+
+      if (fetchedPlayers.isEmpty && mounted) {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Nenhum jogador encontrado para este time. Adicione alguns!',
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          textColor: Theme.of(context).colorScheme.onPrimary,
+          icon: Icons.info_outline,
+        );
+        FirebaseAnalytics.instance.logEvent(name: 'no_players_found_for_team');
+      }
+    } catch (e, s) {
+      FirebaseCrashlytics.instance.recordError(e, s, reason: 'Erro ao buscar jogadores para o time ${widget.teamId}');
+      setState(() {
+        isLoading = false;
+        _hasError = true;
+      });
+      if (mounted) {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Erro ao carregar jogadores. Tente novamente.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+        );
+      }
     }
   }
 
+  /// Adiciona uma nova linha para um jogador (estado local antes de salvar no backend).
   void addNewPlayerRow() {
     setState(() {
-      players.add({'playerName': '', 'jerseyNumber': '', 'isNew': true});
+      // CORREÇÃO: Adiciona um PlayerDTO "vazio" para o novo jogador
+      players.add(PlayerDTO(
+        idPlayer: null, // ID nulo para novo jogador
+        playerName: '',
+        jerseyNumber: '',
+        // teamId e teamName serão preenchidos na hora de enviar ao backend
+      ));
     });
     FirebaseAnalytics.instance.logEvent(name: 'add_new_player_row');
   }
 
+  /// Confirma e salva um novo jogador no backend.
   Future<void> confirmNewPlayer(int index, String name, String number) async {
     if (name.isEmpty || number.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please fill both boxes")),
+        PersistentSnackbar.show(
+          context: context,
+          message: "Por favor, preencha ambos os campos (nome e número).",
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
         );
       }
-      FirebaseAnalytics.instance.logEvent(name: 'add_player_failed', parameters: {'reason': 'empty_fields'});
+      FirebaseAnalytics.instance.logEvent(name: 'add_player_failed', parameters: {'reason': 'empty_fields_dialog'});
       return;
     }
 
     setState(() => isLoading = true);
+    // CORREÇÃO: Chama o controlador com os dados corretos
     final PlayerOperationResult result = await _playerController.addPlayer(
       playerName: name,
       jerseyNumber: number,
-      teamId: widget.teamId,
+      teamId: widget.teamId, // Passa o ID do time
     );
 
     if (mounted) {
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Player added successfully!")),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? "Jogador adicionado com sucesso!",
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
         );
-        await _fetchPlayers();
+        await _fetchPlayers(); // Atualiza a lista após adicionar
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Unknown error adding player')),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Erro desconhecido ao adicionar jogador.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
         );
       }
     }
     setState(() => isLoading = false);
   }
 
+  /// Deleta um jogador do backend.
   Future<void> deletePlayer(int index) async {
-    final id = players[index]['id_player'];
+    final PlayerDTO playerToDelete = players[index]; // CORREÇÃO: Pega o PlayerDTO
+    final id = playerToDelete.idPlayer; // CORREÇÃO: Acessa idPlayer
+
     if (id == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: Player ID not found.')),
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Erro: ID do jogador não encontrado para exclusão.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
         );
       }
       FirebaseAnalytics.instance.logEvent(name: 'delete_player_failed', parameters: {'reason': 'player_id_null'});
@@ -121,22 +246,22 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete Player'),
-        content: const Text('Are you sure you want to delete this player?'),
+        title: const Text('Confirmar Exclusão de Jogador'),
+        content: const Text('Tem certeza que deseja excluir este jogador?'),
         actions: [
           TextButton(
             onPressed: () {
               FirebaseAnalytics.instance.logEvent(name: 'delete_player_canceled');
               Navigator.of(context).pop(false);
             },
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () {
               FirebaseAnalytics.instance.logEvent(name: 'delete_player_confirmed');
               Navigator.of(context).pop(true);
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Excluir', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -145,31 +270,44 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     if (confirm == null || !confirm) return;
 
     setState(() => isLoading = true);
+    // CORREÇÃO: Chama o controlador e trata o resultado
     final PlayerOperationResult result = await _playerController.deletePlayer(id);
 
     if (mounted) {
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Player deleted successfully!")),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? "Jogador deletado com sucesso!",
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
         );
-        await _fetchPlayers();
+        await _fetchPlayers(); // Atualiza a lista após deletar
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Unknown error deleting player')),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Erro desconhecido ao deletar jogador.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
         );
       }
     }
     setState(() => isLoading = false);
   }
 
+  /// Edita um jogador existente no backend.
   Future<void> editPlayer(int index) async {
-    final player = players[index];
-    final id = player['id_player'];
+    final PlayerDTO playerToEdit = players[index]; // CORREÇÃO: Pega o PlayerDTO
+    final id = playerToEdit.idPlayer; // CORREÇÃO: Acessa idPlayer
 
     if (id == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: Player ID not found for editing.')),
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Erro: ID do jogador não encontrado para edição.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
         );
       }
       FirebaseAnalytics.instance.logEvent(name: 'edit_player_failed', parameters: {'reason': 'player_id_null'});
@@ -177,73 +315,87 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     }
 
     setState(() => isLoading = true);
+    // CORREÇÃO: Chama o controlador e trata o resultado
     final PlayerOperationResult result = await _playerController.editPlayer(
       playerId: id,
-      playerName: player['playerName'],
-      jerseyNumber: player['jerseyNumber'],
+      playerName: playerToEdit.playerName, // CORREÇÃO: Acessa playerName
+      jerseyNumber: playerToEdit.jerseyNumber, // CORREÇÃO: Acessa jerseyNumber
     );
 
     if (mounted) {
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Player updated successfully!")),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? "Jogador atualizado com sucesso!",
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
         );
-        await _fetchPlayers();
+        await _fetchPlayers(); // Atualiza a lista após editar
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Unknown error updating player')),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Erro desconhecido ao atualizar jogador.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
         );
       }
     }
     setState(() => isLoading = false);
   }
 
+  /// Exibe um diálogo para editar nome e número de um jogador existente.
   void showEditDialog(int index) {
-    FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_opened', parameters: {'player_id': players[index]['id_player']});
-    final player = players[index];
-    final TextEditingController nameController = TextEditingController(text: player['playerName']);
-    final TextEditingController numberController = TextEditingController(text: player['jerseyNumber'].toString());
+    FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_opened', parameters: {'player_id': players[index].idPlayer}); // CORREÇÃO: idPlayer
+    final PlayerDTO player = players[index]; // CORREÇÃO: PlayerDTO
+    final TextEditingController nameController = TextEditingController(text: player.playerName); // CORREÇÃO: playerName
+    final TextEditingController numberController = TextEditingController(text: player.jerseyNumber); // CORREÇÃO: jerseyNumber
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.grey[900],
-          title: const Text("Edit Player", style: TextStyle(color: Colors.white)),
+          title: const Text("Editar Jogador", style: TextStyle(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: numberController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Number"),
+                decoration: const InputDecoration(labelText: "Número da Camisa", labelStyle: TextStyle(color: Colors.white70)), // Localizado
                 style: const TextStyle(color: Colors.white),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // Apenas dígitos
               ),
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: "Name"),
+                decoration: const InputDecoration(labelText: "Nome do Jogador", labelStyle: TextStyle(color: Colors.white70)), // Localizado
                 style: const TextStyle(color: Colors.white),
               ),
             ],
           ),
           actions: [
             TextButton(
-              child: const Text("Cancel", style: TextStyle(color: Colors.red)),
+              child: const Text("Cancelar", style: TextStyle(color: Colors.red)),
               onPressed: () {
                 FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_canceled');
                 Navigator.of(context).pop();
               },
             ),
             TextButton(
-              child: const Text("Save", style: TextStyle(color: Colors.green)),
+              child: const Text("Salvar", style: TextStyle(color: Colors.green)),
               onPressed: () {
                 FirebaseAnalytics.instance.logEvent(name: 'edit_player_dialog_saved');
+                // CORREÇÃO: Atualiza o PlayerDTO no estado local antes de chamar o backend
                 setState(() {
-                  players[index]['playerName'] = nameController.text;
-                  players[index]['jerseyNumber'] = numberController.text;
+                  players[index] = players[index].copyWith( // Usa copyWith para atualizar PlayerDTO
+                    playerName: nameController.text,
+                    jerseyNumber: numberController.text,
+                  );
                 });
                 Navigator.of(context).pop();
-                editPlayer(index);
+                editPlayer(index); // Chama o método para enviar ao backend
               },
             ),
           ],
@@ -252,28 +404,29 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     );
   }
 
+  /// Deleta um time completo do backend.
   Future<void> _deleteTeam() async {
-    FirebaseAnalytics.instance.logEvent(name: 'delete_team_button_tapped');
+    FirebaseAnalytics.instance.logEvent(name: 'delete_team_button_tapped_edit_screen');
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Confirm Deletion'),
-          content: const Text('Are you sure you want to delete this team? This action cannot be undone.'),
+          title: const Text('Confirmar Exclusão de Time'),
+          content: const Text('Tem certeza que deseja excluir este time? Esta ação não pode ser desfeita e todos os jogadores serão removidos.'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 FirebaseAnalytics.instance.logEvent(name: 'delete_team_canceled');
                 Navigator.of(context).pop(false);
               },
-              child: const Text('Cancel'),
+              child: const Text('Cancelar'),
             ),
             TextButton(
               onPressed: () {
                 FirebaseAnalytics.instance.logEvent(name: 'delete_team_confirmed');
                 Navigator.of(context).pop(true);
               },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              child: const Text('Excluir', style: TextStyle(color: Colors.red)),
             ),
           ],
         );
@@ -288,17 +441,26 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
       isLoading = true;
     });
 
-    final bool success = await _teamController.deleteTeam(widget.teamId);
+    // CORREÇÃO: Chama o controlador e trata o resultado
+    final TeamOperationResult result = await _teamController.deleteTeam(widget.teamId);
 
     if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Team deleted successfully!')),
+      if (result.success) {
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Time deletado com sucesso!',
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
         );
-        Navigator.pop(context, true);
+        Navigator.pop(context, true); // Retorna 'true' para a tela pai (TeamsScreen)
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete team.')),
+        PersistentSnackbar.show(
+          context: context,
+          message: result.userMessage ?? 'Falha ao deletar time.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
         );
       }
     }
@@ -307,10 +469,12 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     });
   }
 
-  Widget buildPlayerRow(Map<String, dynamic> player, int index) {
-    if (player['isNew'] == true) {
-      TextEditingController nameController = TextEditingController(text: player['playerName']);
-      TextEditingController numberController = TextEditingController(text: player['jerseyNumber']);
+  /// Constrói uma linha de jogador no ListView (existente ou novo).
+  Widget _buildPlayerRow(PlayerDTO player, int index) { // CORREÇÃO: Parâmetro PlayerDTO
+    // Se o jogador é novo (ainda não salvo), exibe os campos de entrada
+    if (player.idPlayer == null) { // CORREÇÃO: idPlayer para verificar se é novo
+      TextEditingController nameController = TextEditingController(text: player.playerName);
+      TextEditingController numberController = TextEditingController(text: player.jerseyNumber);
 
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -324,44 +488,46 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
             children: [
               Expanded(
                 flex: 2,
-                child: TextField(
+                child: TextField( // Use TextField for inline editing
                   controller: numberController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(
                     hintText: "Nº",
                     hintStyle: TextStyle(color: Colors.white54),
                     border: InputBorder.none,
                   ),
                   style: const TextStyle(color: Colors.white),
+                  onChanged: (value) {
+                    // Update the local DTO in state as user types
+                    players[index] = players[index].copyWith(jerseyNumber: value);
+                  },
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 flex: 4,
-                child: TextField(
+                child: TextField( // Use TextField for inline editing
                   controller: nameController,
                   decoration: const InputDecoration(
-                    hintText: "Name",
+                    hintText: "Nome", // Localizado
                     hintStyle: TextStyle(color: Colors.white54),
                     border: InputBorder.none,
                   ),
                   style: const TextStyle(color: Colors.white),
+                  onChanged: (value) {
+                    // Update the local DTO in state as user types
+                    players[index] = players[index].copyWith(playerName: value);
+                  },
                 ),
               ),
+              // Botão de confirmar apenas para novos jogadores
               IconButton(
                 icon: const Icon(Icons.check, color: Colors.green),
                 onPressed: () {
                   FirebaseAnalytics.instance.logEvent(name: 'add_new_player_confirm_button_tapped');
-                  if (!(nameController.text.isEmpty || numberController.text.isEmpty)) {
-                    confirmNewPlayer(index, nameController.text, numberController.text);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Please fill both boxes"),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
+                  // CORREÇÃO: Passa os valores dos controladores, não do player local
+                  confirmNewPlayer(index, nameController.text, numberController.text);
                 },
               ),
             ],
@@ -370,6 +536,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
       );
     }
 
+    // Para jogadores já existentes e salvos
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       decoration: BoxDecoration(
@@ -386,7 +553,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "${player['jerseyNumber']}",
+                  player.jerseyNumber, // CORREÇÃO: Acessa jerseyNumber
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -397,7 +564,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
               Align(
                 alignment: Alignment.center,
                 child: Text(
-                  "${player['playerName']}",
+                  player.playerName, // CORREÇÃO: Acessa playerName
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -419,8 +586,8 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(value: 'edit', child: Text("Edit Player")),
-            const PopupMenuItem(value: 'delete', child: Text("Delete Player")),
+            const PopupMenuItem(value: 'edit', child: Text("Editar Jogador")), // Localizado
+            const PopupMenuItem(value: 'delete', child: Text("Deletar Jogador")), // Localizado
           ],
           icon: const Icon(Icons.more_vert, color: Colors.white),
         ),
@@ -428,6 +595,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     );
   }
 
+  /// Constrói o botão "Novo jogador".
   Widget buildNewPlayerButton() {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -441,7 +609,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
             FirebaseAnalytics.instance.logEvent(name: 'new_player_button_tapped');
             addNewPlayerRow();
           },
-          child: const Text("New player", style: TextStyle(color: Colors.orange)),
+          child: const Text("Novo jogador", style: TextStyle(color: Colors.orange)),
         ),
       ),
     );
@@ -449,37 +617,41 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    _setPortraitOrientation();
     return Scaffold(
       appBar: AppBar(
+        title: Text('Editar Time'), // Título fixo para edição, ou pode ser TeamName
         backgroundColor: const Color(0xFFFF4500),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
             FirebaseAnalytics.instance.logEvent(name: 'edit_team_players_back_button_tapped', parameters: {'team_id': widget.teamId});
-            Navigator.pop(context);
+            Navigator.pop(context, true); // Pop with true to indicate possible changes
           },
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.white, size: 28),
-            tooltip: 'Edit Team Details',
-            onPressed: isLoading ? null : () async {
+            tooltip: 'Editar Detalhes do Time', // Localizado
+            onPressed: isLoading ? null : () async { // Desabilita se estiver carregando
               FirebaseAnalytics.instance.logEvent(name: 'edit_team_details_button_tapped', parameters: {'team_id': widget.teamId});
+              // Navega para CreateTeamScreen para editar os detalhes do time (nome, abreviação, logo)
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => CreateTeamScreen(teamId: widget.teamId),
                 ),
               );
+              // Se a tela de edição de detalhes retornar 'true', atualiza a lista de jogadores
               if (result == true) {
-                _fetchPlayers();
+                _fetchTeamDetails(); // Refresh details (name, logo)
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Team details refreshed!")),
+                  PersistentSnackbar.show(
+                    context: context,
+                    message: "Detalhes do time atualizados!",
+                    backgroundColor: Colors.blueGrey.shade700,
+                    textColor: Colors.white,
+                    icon: Icons.refresh,
                   );
                 }
               }
@@ -487,8 +659,8 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.white, size: 28),
-            tooltip: 'Delete Team',
-            onPressed: isLoading ? null : _deleteTeam,
+            tooltip: 'Deletar Time', // Localizado
+            onPressed: isLoading ? null : _deleteTeam, // Desabilita se estiver carregando
           ),
         ],
       ),
@@ -505,19 +677,39 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-        child: isLoading
-            ? const Center(child: CircularProgressIndicator())
+        child: _isFetchingDetails || isLoading // Mostra loading para busca de detalhes OU operações de jogador
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            : _hasError // Exibe erro se houver um problema crítico de carregamento
+            ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Erro ao carregar jogadores.', style: TextStyle(color: Colors.red, fontSize: 18), textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+              ElevatedButton(onPressed: _fetchPlayers, child: const Text('Tentar Novamente')),
+            ],
+          ),
+        )
             : Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Novo: Exibe o nome do time sendo editado
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: Text(
+                _teamNameController.text.isNotEmpty ? _teamNameController.text : 'Carregando Nome do Time...',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
             Expanded(
               child: ListView.builder(
-                itemCount: players.length + 1,
+                itemCount: players.length + 1, // +1 para o botão "Novo jogador"
                 itemBuilder: (context, index) {
                   if (index < players.length) {
-                    return buildPlayerRow(players[index], index);
+                    return _buildPlayerRow(players[index], index); // Usa _buildPlayerRow
                   } else {
-                    return buildNewPlayerButton();
+                    return buildNewPlayerButton(); // Usa buildNewPlayerButton
                   }
                 },
               ),

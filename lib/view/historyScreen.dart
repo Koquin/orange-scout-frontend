@@ -1,11 +1,19 @@
+import 'dart:io'; // Still needed for File.existsSync() but check its validity for web/other platforms
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:OrangeScoutFE/util/token_utils.dart';
-import 'package:OrangeScoutFE/view/statScreen.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+
+// Import your DTOs
+import 'package:OrangeScoutFE/dto/match_dto.dart';
+import 'package:OrangeScoutFE/dto/location_dto.dart'; // Ensure LocationDTO is imported for parsing
+import 'package:OrangeScoutFE/dto/team_dto.dart';     // Ensure TeamDTO is imported for parsing
+
+// Import your controllers
+import 'package:OrangeScoutFE/controller/match_controller.dart';
+import 'package:OrangeScoutFE/controller/location_controller.dart';
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart'; // Import your refactored Snackbar
+import 'package:OrangeScoutFE/view/statScreen.dart'; // Your StatsScreen to navigate to
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -15,234 +23,348 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  //Base url
-  String? baseUrl = dotenv.env['API_BASE_URL'];
-
-  List<Map<String, dynamic>> matches = [];
+  // Use MatchDTO for type safety
+  List<MatchDTO> matches = [];
   bool isLoading = true;
-  bool hasError = false;
+  bool hasError = false; // Indicates a critical error fetching data
+
+  final MatchController _matchController = MatchController();
+  final LocationController _locationController = LocationController();
 
   @override
   void initState() {
+    super.initState();
+    _setPortraitOrientation(); // Set orientation early
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirebaseAnalytics.instance.logScreenView(
+        screenName: 'HistoryScreen',
+        screenClass: 'HistoryScreenState',
+      );
+    });
+    _fetchMatches();
+  }
+
+  // Ensures portrait orientation
+  void _setPortraitOrientation() {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    super.initState();
-    fetchMatches();
   }
 
-
-
-  Future<void> fetchMatches() async {
-    String? token = await loadToken();
+  Future<void> _fetchMatches() async {
     setState(() {
       isLoading = true;
-      hasError = false;
+      hasError = false; // Reset error state on new fetch attempt
     });
+    FirebaseAnalytics.instance.logEvent(name: 'fetch_matches_history_attempt');
+    FirebaseCrashlytics.instance.log('Attempting to fetch user match history.');
+
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/match/user'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-    print(response.statusCode);
-      if (response.statusCode == 200){
-        List<dynamic> data = jsonDecode(response.body);
-        setState(() {
-          matches = data.map((match) => {
-            'id': match['idMatch'],
-            'team1': match['teamOne']['abbreviation'],
-            'team2': match['teamTwo']['abbreviation'],
-            'score': '${match['teamOneScore']} x ${match['teamTwoScore']}',
-            'date': match['matchDate'],
-            'team1Logo': match['teamOne']['logoPath'],
-            'team2Logo': match['teamTwo']['logoPath'],
-            'location': match['location_id'],
-          }).toList();
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          hasError = true;
-          isLoading = false;
-        });
-      }
-    } catch (e) {
+      // Use controller to fetch matches, which now returns List<MatchDTO>
+      List<MatchDTO> fetchedMatches = await _matchController.fetchUserMatches();
+
       setState(() {
-        hasError = true;
+        matches = fetchedMatches;
         isLoading = false;
+        // Set hasError based on whether matches were fetched
+        hasError = fetchedMatches.isEmpty;
       });
+
+      if (fetchedMatches.isEmpty && mounted) {
+        FirebaseAnalytics.instance.logEvent(name: 'no_matches_found_history_screen');
+        PersistentSnackbar.show(
+          context: context,
+          message: 'No match found in your history.',
+          backgroundColor: Theme.of(context).colorScheme.primary, // Using theme color
+          textColor: Theme.of(context).colorScheme.onPrimary,
+          icon: Icons.info_outline,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } catch (e, s) {
+      FirebaseCrashlytics.instance.recordError(
+        e, s,
+        reason: 'Error fetching user match history',
+        fatal: false,
+      );
+      setState(() {
+        isLoading = false;
+        hasError = true; // Set error state if an exception occurs
+      });
+      if (mounted) {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Error loading match history. Try again.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+          duration: const Duration(seconds: 5),
+        );
+      }
     }
   }
 
-  Future<void> _openMatchLocation(String matchId) async {
-    String? token = await loadToken();
-    final response = await http.get(
-      Uri.parse('$baseUrl/match/matchLocation/$matchId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
+  /// Opens a specific match location on Google Maps.
+  /// It receives a LocationDTO, which includes latitude, longitude, and venueName.
+  Future<void> _openMatchLocationOnMaps(LocationDTO location) async {
+    FirebaseAnalytics.instance.logEvent(name: 'open_single_match_location_button_tapped', parameters: {'location_id': location.id});
+    // Use the controller's method which is designed to handle this.
+    // The controller internally fetches location details from backend if only an ID is passed.
+    // For this specific method, we already have the LocationDTO, so we might make a specific
+    // call in LocationController if it supports directly launching from DTO.
+    // For now, let's assume it still fetches by ID, or we pass the necessary coords.
+
+    // Updated: LocationController.openMatchLocationOnMaps now accepts locationId
+    bool success = await _locationController.openMatchLocationOnMaps(location.id!);
+
+    if (!success && mounted) {
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Could not open match location.',
+        backgroundColor: Colors.red.shade700,
+        textColor: Colors.white,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  /// Opens all match locations on Google Maps.
+  Future<void> _openAllLocationsOnMaps() async {
+    FirebaseAnalytics.instance.logEvent(name: 'open_all_locations_button_tapped');
+    bool success = await _locationController.openAllMatchLocationsOnMaps(); // Use the controller's method
+    if (!success && mounted) {
+      PersistentSnackbar.show(
+        context: context,
+        message: 'Could not open all locations or no location found.',
+        backgroundColor: Colors.red.shade700,
+        textColor: Colors.white,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  /// Deletes a specific match.
+  Future<void> _deleteMatch(int matchId) async {
+    FirebaseAnalytics.instance.logEvent(name: 'delete_match_button_tapped', parameters: {'match_id': matchId});
+    FirebaseCrashlytics.instance.log('Attempting to delete match: $matchId');
+
+    // Show a confirmation dialog
+    bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm delete'),
+          content: const Text('You really want to delete this match?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
       },
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final latitude = data['latitude'];
-      final longitude = data['longitude'];
-
-      final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
-      if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-        await launchUrl(Uri.parse(googleMapsUrl));
-      } else {
-        print("Error opening google maps");
+    if (confirmDelete == true) {
+      // Call the controller's delete method
+      bool success = await _matchController.deleteMatch(matchId);
+      if (success && mounted) {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Match deleted successfully!',
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          icon: Icons.check_circle_outline,
+        );
+        _fetchMatches(); // Refresh the list after deletion
+      } else if (mounted) {
+        PersistentSnackbar.show(
+          context: context,
+          message: 'Failed to delete match. Try Again.',
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          icon: Icons.error_outline,
+        );
       }
-    } else {
-      print("Error locating the match");
     }
   }
-
-  Future<void> _openAllLocations() async {
-    String? token = await loadToken();
-    final response = await http.get(
-      Uri.parse('$baseUrl/match/locations'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final List<dynamic> locations = jsonDecode(response.body);
-      if (locations.isEmpty) {
-        return;
-      }
-
-      if (locations.length == 1) {
-        final singleLocation = "${locations[0]['latitude']},${locations[0]['longitude']}";
-        final googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=$singleLocation";
-
-        if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-          await launchUrl(Uri.parse(googleMapsUrl));
-        } else {
-          print("Erro opening google maps");
-        }
-        return;
-      }
-
-      String destination = "${locations[0]['latitude']},${locations[0]['longitude']}";
-
-      String waypoints = locations
-          .skip(1)
-          .map((loc) => "${loc['latitude']},${loc['longitude']}")
-          .join("|");
-
-      // Construindo a URL final
-      String googleMapsUrl = "https://www.google.com/maps/dir/?api=1&destination=$destination&waypoints=$waypoints";
-
-      if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-        await launchUrl(Uri.parse(googleMapsUrl));
-      } else {
-        print("Error opening google maps");
-      }
-    } else {
-      print("Error fetching all locations");
-    }
-  }
-
 
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    // Orientation is set in initState, so no need for SystemChrome here again.
+    // build method is called multiple times.
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.0,
             colors: [
-              Color.fromARGB(255, 231, 148, 23),
-              Color.fromARGB(255, 202, 66, 56),
-              Color.fromARGB(255, 53, 33, 33),
+              Color(0xFFFF4500),
+              Color(0xFF84442E),
+              Color(0xFF3A2E2E),
             ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            stops: [0.0, 0.5, 0.9],
           ),
         ),
         child: Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Match history', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
+                  IconButton(
+                    icon: const Icon(Icons.location_on, color: Colors.blueAccent, size: 30),
+                    tooltip: 'See all locations',
+                    onPressed: _openAllLocationsOnMaps, // Call the unified method
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: isLoading
-                  ? Center(child: CircularProgressIndicator())
+                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
                   : hasError
-                  ? Center(child: Text('Erro ao carregar partidas', style: TextStyle(color: Colors.red)))
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Error loading match history or no match found.',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: _fetchMatches,
+                      child: const Text('Try again.'),
+                    ),
+                  ],
+                ),
+              )
+                  : matches.isEmpty
+                  ? Center(
+                child: Text(
+                  'Start a match to see your history here!',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+              )
                   : ListView.builder(
                 itemCount: matches.length,
                 itemBuilder: (context, index) {
+                  final match = matches[index]; // Now a MatchDTO
+                  final DateTime matchDate = DateTime.parse(match.matchDate);
+                  final String formattedDate = "${matchDate.day.toString().padLeft(2, '0')}/${matchDate.month.toString().padLeft(2, '0')}/${matchDate.year}";
+
                   return Card(
-                    color: Colors.black54,
-                    margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                    color: Colors.black.withOpacity(0.5),
+                    margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 5,
                     child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
-                            icon: Image.asset(
-                              'assets/images/StatisticsIcon.png',
-                              width: 50,
-                              height: 50,
-                            ),
+                            icon: const Icon(Icons.bar_chart, color: Color(0xFFFFCC80), size: 25),
+                            tooltip: 'View stats',
                             onPressed: () {
-                              final matchId = matches[index]['id'];
-                              print(matchId);
-                              if (matchId != null) {
+                              FirebaseAnalytics.instance.logEvent(name: 'view_stats_button_tapped', parameters: {'match_id': match.idMatch});
+                              if (match.idMatch != null) {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => StatsScreen(matchId: matchId),
+                                    builder: (context) => StatsScreen(matchId: match.idMatch!),
                                   ),
+                                );
+                              } else {
+                                PersistentSnackbar.show(
+                                  context: context,
+                                  message: 'Match id not available to view stats.',
+                                  backgroundColor: Colors.red.shade700,
+                                  textColor: Colors.white,
                                 );
                               }
                             },
                           ),
-                          Row(
-                            children: [
-                              Image.asset('assets/images/TeamShieldIcon-cutout.png', width: 60, height: 60),
-                            ],
+                          Expanded(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Display Team 1 Logo and Abbreviation
+                                _buildTeamLogo(match.teamOne.logoPath), // Use TeamDTO
+                                const SizedBox(width: 8),
+                                Text(
+                                  match.teamOne.abbreviation, // Use TeamDTO
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 15),
+                                // Match Date and Score
+                                Column(
+                                  children: [
+                                    Text(formattedDate, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                    Text(
+                                      '${match.teamOneScore} x ${match.teamTwoScore}',
+                                      style: const TextStyle(color: Colors.orange, fontSize: 15, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 15),
+                                // Display Team 2 Logo and Abbreviation
+                                Text(
+                                  match.teamTwo.abbreviation, // Use TeamDTO
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 8),
+                                _buildTeamLogo(match.teamTwo.logoPath), // Use TeamDTO
+                              ],
+                            ),
                           ),
-                          Row(
-                            children: [
-                              SizedBox(width: 5),
-                              Text(matches[index]['team1'], style: TextStyle(color: Colors.grey, fontSize: 16)),
-                              SizedBox(width: 5),
-                            ],
+                          // Location and Delete Buttons
+                          IconButton(
+                            icon: const Icon(Icons.location_on, color: Colors.blueAccent, size: 25),
+                            tooltip: 'See location',
+                            onPressed: () {
+                              FirebaseAnalytics.instance.logEvent(name: 'view_match_location_button_tapped', parameters: {'match_id': match.idMatch});
+                              if (match.location != null && match.location!.id != null) { // Access ID from LocationDTO
+                                _openMatchLocationOnMaps(match.location!); // Pass LocationDTO or its ID
+                              } else {
+                                PersistentSnackbar.show(
+                                  context: context,
+                                  message: 'Location not available to this match.',
+                                  backgroundColor: Colors.orange.shade700,
+                                  textColor: Colors.white,
+                                  icon: Icons.info_outline,
+                                );
+                                FirebaseAnalytics.instance.logEvent(name: 'view_match_location_unavailable', parameters: {'match_id': match.idMatch});
+                              }
+                            },
                           ),
-                          Column(
-                            children: [
-                              Text(matches[index]['date'], style: TextStyle(color: Colors.grey, fontSize: 16)),
-                              Text(matches[index]['score'], style: TextStyle(color: Colors.orange, fontSize: 20)),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              SizedBox(width: 5),
-                              Text(matches[index]['team2'], style: TextStyle(color: Colors.grey, fontSize: 16)),
-                              SizedBox(width: 5),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Image.asset('assets/images/TeamShieldIcon-cutout.png', width: 60, height: 60),
-                              SizedBox(width: 10),
-                            ],
+                          IconButton(
+                            icon: const Icon(Icons.delete_forever, color: Colors.red, size: 25),
+                            tooltip: 'Delete match',
+                            onPressed: () {
+                              if (match.idMatch != null) {
+                                _deleteMatch(match.idMatch!);
+                              }
+                            },
                           ),
                         ],
                       ),
@@ -251,22 +373,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 },
               ),
             ),
-            Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: _openAllLocations,
-                    child: Text("See all locations"),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
-
     );
+  }
+
+  // Helper Widget for Team Logos
+  Widget _buildTeamLogo(String? logoPath) {
+    // Consider adding a network image widget here if logoPath is a URL
+    if (logoPath != null && logoPath.isNotEmpty) {
+      // Check if it's a local file path
+      if (logoPath.startsWith('/data/') || logoPath.startsWith('file://')) {
+        return Image.file(
+          File(logoPath),
+          width: 30,
+          height: 30,
+          fit: BoxFit.contain,
+          errorBuilder: (c, e, s) => Image.asset("assets/images/TeamShieldIcon-cutout.png", width: 30, height: 30),
+        );
+      } else {
+        // Assume it's a network URL if not a local file path
+        return Image.network(
+          logoPath,
+          width: 30,
+          height: 30,
+          fit: BoxFit.contain,
+          errorBuilder: (c, e, s) => Image.asset("assets/images/TeamShieldIcon-cutout.png", width: 30, height: 30),
+        );
+      }
+    }
+    return Image.asset("assets/images/TeamShieldIcon-cutout.png", width: 30, height: 30);
   }
 }

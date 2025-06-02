@@ -12,8 +12,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'dart:async';
-import 'package:OrangeScoutFE/controller/userController.dart';
-import 'package:OrangeScoutFE/controller/authController.dart';
+import 'package:OrangeScoutFE/controller/auth_controller.dart';
 
 
 Future<void> main() async {
@@ -39,7 +38,7 @@ Future<void> main() async {
   runZonedGuarded(() async {
     final AuthController authController = AuthController();
     String? token = await loadToken();
-    bool expiredToken = token == null || await authController.isTokenExpired(token);
+    bool expiredToken = token == null || await authController.isTokenExpiredBackendCheck(token);
     runApp(MyApp(expiredToken: expiredToken));
   }, (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);

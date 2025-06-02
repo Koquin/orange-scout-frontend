@@ -1,13 +1,26 @@
+import 'package:OrangeScoutFE/view/verificationScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:OrangeScoutFE/view/selectTeamsNStarters.dart';
-import 'package:OrangeScoutFE/util/persistent_snackBar.dart';
-import 'package:OrangeScoutFE/controller/userController.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
+// Import your controllers
+import 'package:OrangeScoutFE/controller/user_controller.dart'; // Remova se não usar
+import 'package:OrangeScoutFE/controller/auth_controller.dart'; // Import AuthController for validation check
+import 'package:OrangeScoutFE/controller/match_controller.dart'; // Import MatchController for teams check
+
+// Import your DTOs
+import 'package:OrangeScoutFE/dto/auth_result_dto.dart'; // Use AuthResult (já que AuthResult.token foi adaptado)
+import 'package:OrangeScoutFE/dto/team_dto.dart'; // To get List<TeamDTO> from MatchController
+
+// Import your utility
+import 'package:OrangeScoutFE/util/persistent_snackbar.dart';
+
+// Import your views
+import 'package:OrangeScoutFE/view/selectTeamsNStarters.dart';
+import 'package:OrangeScoutFE/view/teamsScreen.dart';
+
 class SelectGameScreen extends StatefulWidget {
-  final Function(Widget) onNavigate;
-  const SelectGameScreen({super.key, required this.onNavigate});
+  const SelectGameScreen({super.key});
 
   @override
   _SelectGameScreenState createState() => _SelectGameScreenState();
@@ -16,15 +29,13 @@ class SelectGameScreen extends StatefulWidget {
 class _SelectGameScreenState extends State<SelectGameScreen> {
   String _pressedMode = "";
 
-  final UserController _userController = UserController();
+  final AuthController _authController = AuthController();
+  final MatchController _matchController = MatchController();
 
   @override
   void initState() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
     super.initState();
+    _setPortraitOrientation();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirebaseAnalytics.instance.logScreenView(
         screenName: 'SelectGameScreen',
@@ -33,45 +44,88 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
     });
   }
 
+  void _setPortraitOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  /// Handles the navigation logic based on game mode selection.
+  /// Checks user validation and team count before proceeding.
   Future<void> _handleNavigation(String gameMode) async {
     FirebaseAnalytics.instance.logEvent(
       name: 'game_mode_selected',
       parameters: {'game_mode': gameMode},
     );
 
-    bool isValidated = await _userController.checkUserValidation();
-    bool hasEnoughTeams = await _userController.checkUserTeams();
+    // 1. Check user validation status
+    AuthResult validationResult = await _authController.checkUserValidationStatus();
 
-    if (!isValidated) {
+    // NOTE: AuthResult.token is a String. If it's used for isValidated status
+    // and holds 'true' or 'false', compare it as a String.
+    // However, it's better to add a specific `isValidated` bool to AuthResult.
+    // For now, assuming your AuthResult.token holds 'true'/'false' as strings:
+    if (!validationResult.success || validationResult.token == 'false') {
       FirebaseAnalytics.instance.logEvent(name: 'validation_needed_snackbar_shown');
       PersistentSnackbar.show(
         context: context,
-        message: "You need to validate your email",
-        actionTitle: "Validation Screen",
-        navigation: "/validationScreen",
+        message: validationResult.userMessage ?? "Você precisa validar seu email para continuar.",
+        actionLabel: "Validar",
+        onActionPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const VerificationScreen()));
+        },
+        backgroundColor: Colors.orange.shade700,
+        textColor: Colors.white,
+        icon: Icons.email,
+        duration: const Duration(seconds: 5),
       );
-    } else if (!hasEnoughTeams) {
+      return;
+    }
+
+    // 2. Check if user has enough teams
+    bool hasEnoughTeams = await _matchController.validateStartGame();
+
+    FirebaseAnalytics.instance.logEvent(
+      name: 'user_teams_status',
+      parameters: {'has_teams': hasEnoughTeams.toString()},
+    );
+
+    if (!hasEnoughTeams) {
       FirebaseAnalytics.instance.logEvent(name: 'teams_needed_snackbar_shown');
       PersistentSnackbar.show(
         context: context,
-        message: "You need at least two teams to start",
-        actionTitle: "Create team",
-        navigation: "/createTeam",
+        message: "Você precisa de pelo menos dois times para iniciar uma partida.",
+        actionLabel: "Criar Times",
+        onActionPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const TeamsScreen()));
+        },
+        backgroundColor: Colors.orange.shade700,
+        textColor: Colors.white,
+        icon: Icons.group,
+        duration: const Duration(seconds: 5),
       );
-    } else {
-      FirebaseAnalytics.instance.logEvent(name: 'navigate_to_select_teams_starters', parameters: {'game_mode': gameMode});
-      widget.onNavigate(
-        SelectTeamsNStarters(
-          gameMode: gameMode,
-          onBack: () => widget.onNavigate(Container()),
-          changeScreen: widget.onNavigate,
-        ),
-      );
+      return;
     }
+
+    // If validated and has enough teams, navigate to SelectTeamsNStarters
+    FirebaseAnalytics.instance.logEvent(
+        name: 'navigate_to_select_teams_starters',
+        parameters: {'game_mode': gameMode});
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SelectTeamsNStarters(
+          gameMode: gameMode,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    _setPortraitOrientation();
+
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -102,9 +156,16 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
     );
   }
 
+  // Helper widget to build game mode buttons
   Widget _buildGameModeButton(String mode, String imagePath) {
     return GestureDetector(
-      onTap: () => _handleNavigation(mode),
+      onTap: () {
+        setState(() => _pressedMode = mode);
+        Future.delayed(const Duration(milliseconds: 150), () {
+          setState(() => _pressedMode = "");
+          _handleNavigation(mode);
+        });
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
@@ -123,50 +184,43 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            onTapDown: (_) => setState(() => _pressedMode = mode),
-            onTapUp: (_) {
-              setState(() => _pressedMode = "");
-              _handleNavigation(mode);
-            },
-            child: AnimatedScale(
-              scale: _pressedMode == mode ? 0.95 : 1.0,
-              duration: const Duration(milliseconds: 150),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Image.asset(
-                      imagePath,
-                      fit: BoxFit.cover,
-                    ),
+          child: AnimatedScale(
+            scale: _pressedMode == mode ? 0.95 : 1.0,
+            duration: const Duration(milliseconds: 150),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Image.asset(
+                    imagePath,
+                    fit: BoxFit.cover,
                   ),
-                  Center(
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
-                      ),
-                      child: Text(
-                        mode,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 8.0,
-                              color: Colors.black,
-                              offset: Offset(2.0, 2.0),
-                            ),
-                          ],
-                        ),
+                ),
+                Center(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                    ),
+                    child: Text(
+                      mode,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 8.0,
+                            color: Colors.black,
+                            offset: Offset(2.0, 2.0),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
