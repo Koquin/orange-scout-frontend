@@ -12,8 +12,8 @@ class VerificationBanner extends StatelessWidget {
 
   const VerificationBanner({
     super.key,
-    this.message = 'Sua conta precisa ser verificada.', // PADRÃO: Mensagem padrão
-    this.buttonLabel = 'Verificar Agora', // PADRÃO: Texto padrão do botão
+    this.message = 'Your account must be validated.', // PADRÃO: Mensagem padrão
+    this.buttonLabel = 'Validate now', // PADRÃO: Texto padrão do botão
     required this.onPressed, // Ação do botão é obrigatória
     this.backgroundColor = Colors.orange, // PADRÃO: Cor laranja para atenção
     this.textColor = Colors.white, // PADRÃO: Texto branco para contraste

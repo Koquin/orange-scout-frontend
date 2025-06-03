@@ -64,7 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       PersistentSnackbar.show(
         context: context,
-        message: 'Por favor, preencha todos os campos corretamente.',
+        message: 'Please, fill all fields correctly.',
         backgroundColor: Colors.red.shade700,
         textColor: Colors.white,
         icon: Icons.error_outline,
@@ -94,7 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Conta criada e código de validação enviado!', // Use userMessage
+          message: result.userMessage ?? 'Account created and validation code sent!', // Use userMessage
           backgroundColor: Colors.green.shade700,
           textColor: Colors.white,
           icon: Icons.check_circle_outline,
@@ -115,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // Use the userMessage from AuthResult for display
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Erro desconhecido ao registrar conta.',
+          message: result.userMessage ?? 'Unknown error creating account.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -264,15 +264,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Campo de Username
                     _buildTextField(
                       controller: _usernameController,
-                      hintText: "Nome de Usuário",
-                      labelText: "Nome de Usuário",
+                      hintText: "Username",
+                      labelText: "Username",
                       icon: Icons.person,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Por favor, insira um nome de usuário.';
+                          return 'Please, insert an username.';
                         }
                         if (value.length < 3) {
-                          return 'O nome de usuário deve ter no mínimo 3 caracteres.';
+                          return 'Username has to be at least 3 characters long.';
                         }
                         return null;
                       },
@@ -283,14 +283,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _buildTextField(
                       controller: _emailController,
                       hintText: "Email",
-                      labelText: "Endereço de Email",
+                      labelText: "Email address",
                       icon: Icons.email,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Por favor, insira seu email.';
+                          return 'Please, insert your email.';
                         }
                         if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                          return 'Formato de email inválido.';
+                          return 'Email format invalid.';
                         }
                         return null;
                       },
@@ -300,16 +300,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Campo de Senha
                     _buildTextField(
                       controller: _passwordController,
-                      hintText: "Senha",
-                      labelText: "Senha",
+                      hintText: "Password",
+                      labelText: "Password",
                       icon: Icons.lock,
                       obscureText: true,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Por favor, insira sua senha.';
+                          return 'Please, insert your password.';
                         }
                         if (value.length < 6) {
-                          return 'A senha deve ter no mínimo 6 caracteres.';
+                          return 'Password must be at least 6 characters long.';
                         }
                         return null;
                       },
@@ -317,7 +317,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 30),
 
                     _buildCustomButton(
-                      text: "Registrar",
+                      text: "Register",
                       isLoading: _isLoading,
                       onPressed: _isLoading ? () {} : _register,
                     ),
@@ -333,7 +333,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         );
                       },
                       child: const Text(
-                        "Já tenho uma conta",
+                        "I already have an accout",
                         style: TextStyle(
                           color: Colors.blueAccent,
                           decoration: TextDecoration.underline,

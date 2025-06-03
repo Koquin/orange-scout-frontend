@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       PersistentSnackbar.show(
         context: context,
-        message: 'Por favor, preencha todos os campos corretamente.',
+        message: 'Please, fill all fields correctly.',
         backgroundColor: Colors.red.shade700,
         textColor: Colors.white,
         icon: Icons.error_outline,
@@ -91,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Use the userMessage from AuthResult for display
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Erro desconhecido ao fazer login.',
+          message: result.userMessage ?? 'Unknown error logging in.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -236,15 +236,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     _buildTextField(
                       controller: _emailController,
                       hintText: "Email",
-                      labelText: "Endereço de Email",
+                      labelText: "Email address",
                       icon: Icons.email,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Por favor, insira seu email.';
+                          return 'Please, insert your email.';
                         }
                         // Basic email format validation
                         if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                          return 'Formato de email inválido.';
+                          return 'Invalid email format.';
                         }
                         return null;
                       },
@@ -252,23 +252,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 15),
                     _buildTextField(
                       controller: _passwordController,
-                      hintText: "Senha",
-                      labelText: "Senha",
+                      hintText: "Password",
+                      labelText: "Password",
                       icon: Icons.lock,
                       obscureText: true,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Por favor, insira sua senha.';
+                          return 'Please, insert your password.';
                         }
-                        if (value.length < 6) {
-                          return 'A senha deve ter no mínimo 6 caracteres.';
+                        if (value.length < 8) {
+                          return 'Password has to be at least 8 characters long.';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 30), // Increased spacing
                     _buildCustomButton(
-                      text: "Entrar",
+                      text: "Enter",
                       onPressed: _isLoading ? () {} : _login,
                     ),
                     const SizedBox(height: 25),
@@ -284,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                       },
                       child: const Text(
-                        "Não tenho uma conta",
+                        "I don't have an account",
                         style: TextStyle(
                           color: Colors.blueAccent,
                           decoration: TextDecoration.underline,

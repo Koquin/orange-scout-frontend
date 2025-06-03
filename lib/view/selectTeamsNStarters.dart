@@ -67,7 +67,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
       // FIX: Move initial snackbar calls here
       PersistentSnackbar.show(
         context: context,
-        message: "Certifique-se de que o Orange Scout pode usar TELA CHEIA no seu dispositivo antes de pressionar INICIAR.",
+        message: "Make sure that Orange Scout can use FULL SCREEN on your device before pressing START.",
         backgroundColor: Colors.blueGrey.shade700,
         textColor: Colors.white,
         icon: Icons.info_outline,
@@ -94,7 +94,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     // FIX: Show loading snackbar here as this method is now called *after* postFrameCallback
     PersistentSnackbar.show(
       context: context,
-      message: "Carregando times e jogadores...",
+      message: "Loading teams and players...",
       backgroundColor: Colors.blueGrey.shade700,
       textColor: Colors.white,
       icon: Icons.hourglass_empty,
@@ -111,8 +111,8 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
         if (mounted) {
           PersistentSnackbar.show(
             context: context,
-            message: "Você precisa de pelo menos dois times para iniciar uma partida.",
-            actionLabel: "Criar Times",
+            message: "You need at least two teams to start a match.",
+            actionLabel: "Create teams",
             onActionPressed: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => const TeamsScreen()));
@@ -142,7 +142,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
       if (mounted) {
         PersistentSnackbar.show(
           context: context,
-          message: "Erro ao carregar times e jogadores. Tente novamente.",
+          message: "Error fetching teams and players. Try again.",
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -169,7 +169,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
     if (players.length < _getRequiredPlayersCount() && mounted) {
       PersistentSnackbar.show(
         context: context,
-        message: "O time ${teams[isTeam1 ? team1Index : team2Index].abbreviation} não tem jogadores suficientes para o modo ${widget.gameMode}. Por favor, adicione mais jogadores.",
+        message: "The team ${teams[isTeam1 ? team1Index : team2Index].abbreviation} has not enough players for a ${widget.gameMode}. Please, add more players.",
         backgroundColor: Colors.orange.shade700,
         textColor: Colors.white,
         icon: Icons.warning_amber_rounded,
@@ -197,7 +197,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
       if (mounted) {
         PersistentSnackbar.show(
           context: context,
-          message: "Por favor, selecione jogadores suficientes para ambos os times.",
+          message: "Please, select enough players for both teams.",
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -270,7 +270,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                 ),
               ),
               const Text(
-                "Selecionar Jogador",
+                "Select player",
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -307,7 +307,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                               color: Colors.white, fontWeight: FontWeight.w500),
                         ),
                         subtitle: Text(
-                          "Camisa: ${player.jerseyNumber}",
+                          "Jersey: ${player.jerseyNumber}",
                           style: const TextStyle(color: Colors.white70),
                         ),
                         trailing: isAlreadySelected ? const Icon(Icons.check_circle, color: Colors.green) : null,
@@ -351,7 +351,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text("Cancelar", style: TextStyle(fontSize: 16)),
+                  child: const Text("Cancel", style: TextStyle(fontSize: 16)),
                 ),
               ),
             ],
@@ -538,7 +538,7 @@ class _SelectTeamsNStartersState extends State<SelectTeamsNStarters> {
                   selectedPlayersTeam2.length == _getRequiredPlayersCount())
                   ? _startGame
                   : null,
-              child: const Text("INICIAR", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+              child: const Text("START", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
             _buildTeamSelection(false),
           ],

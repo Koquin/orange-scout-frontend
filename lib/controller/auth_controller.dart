@@ -1,19 +1,19 @@
 import 'dart:convert';
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:OrangeScoutFE/util/token_utils.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../dto/error_response_dto.dart';
 import '../dto/login_request_dto.dart';
 import '../dto/login_response_dto.dart';
 import '../dto/register_request_dto.dart';
 import '../dto/validation_request_dto.dart';
-import '../dto/auth_result_dto.dart';
+import '../dto/auth_result_dto.dart'; // Corrected import for AuthResult
 
 class AuthController {
   final String? _baseUrl = dotenv.env['API_BASE_URL'];
-  final http.Client _httpClient; // Use an injected http client for testing
+  final http.Client _httpClient;
 
   AuthController({http.Client? httpClient}) : _httpClient = httpClient ?? http.Client();
 
@@ -84,9 +84,9 @@ class AuthController {
             information: [response.body],
             fatal: false,
           );
-          return AuthResult(success: false, errorMessage: 'Token not found in server response.', userMessage: 'Falha no login: token ausente.');
+          return AuthResult(success: false, errorMessage: 'Token not found in server response.', userMessage: 'Login failed: missing token.');
         }
-        saveToken(loginResponse.token);
+        saveToken(loginResponse.token); // Use await for async saveToken
         FirebaseCrashlytics.instance.log('Login successful. Token saved.');
         return AuthResult(success: true, token: loginResponse.token);
       } else {
@@ -96,7 +96,7 @@ class AuthController {
           StackTrace.current,
           reason: 'Login failed due to server response',
           information: [
-            'Request URL: ${url}',
+            'Request URL: $url',
             'Response body: ${response.body}',
             'Email attempted: $email'
           ],
@@ -108,9 +108,9 @@ class AuthController {
       FirebaseCrashlytics.instance.recordError(
         e, s,
         reason: 'Login failed due to network or unexpected error',
-        fatal: true, // Fatal error if it's a network/unexpected crash
+        fatal: true,
       );
-      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Não foi possível conectar ao servidor. Verifique sua conexão.');
+      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Could not connect to the server. Check your connection.');
     }
   }
 
@@ -128,12 +128,11 @@ class AuthController {
         body: jsonEncode(registerRequest.toJson()),
       );
 
-      if (response.statusCode == 201) { // Backend returns 201 CREATED for successful registration
+      if (response.statusCode == 201) {
         FirebaseCrashlytics.instance.log('Registration successful for email: $email.');
-        // Backend returns LoginResponse on successful registration, so we parse it and save the token
         final loginResponse = LoginResponse.fromJson(jsonDecode(response.body));
-        saveToken(loginResponse.token);
-        return AuthResult(success: true, token: loginResponse.token, userMessage: 'Registro realizado com sucesso! Um código de validação foi enviado para seu e-mail.');
+        saveToken(loginResponse.token); // Use await for async saveToken
+        return AuthResult(success: true, token: loginResponse.token, userMessage: 'Registration successful! A validation code has been sent to your email.');
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -155,7 +154,7 @@ class AuthController {
         reason: 'Registration failed due to network or unexpected error',
         fatal: true,
       );
-      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Não foi possível conectar ao servidor. Verifique sua conexão.');
+      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Could not connect to the server. Check your connection.');
     }
   }
 
@@ -165,11 +164,11 @@ class AuthController {
 
     if (token == null || token.isEmpty) {
       FirebaseCrashlytics.instance.log('Token is null or empty, client-side considers it expired/invalid.');
-      return true; // Token null/empty is considered expired/invalid client-side
+      return true;
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/auth/isTokenExpired'); // Updated endpoint name
+      final url = Uri.parse('${_getApiBaseUrl()}/auth/isTokenExpired');
       final response = await _httpClient.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -177,11 +176,10 @@ class AuthController {
       );
 
       if (response.statusCode == 200) {
-        bool isExpired = response.body.trim().toLowerCase() == 'true'; // Backend returns true if expired
+        bool isExpired = jsonDecode(response.body) as bool;
         FirebaseCrashlytics.instance.log('Backend token expiration check result: $isExpired');
         return isExpired;
       } else {
-        // Any non-200 status indicates a problem, so we treat it as expired/invalid from client perspective
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
           'Backend token expiration check failed with HTTP status: ${response.statusCode}',
@@ -190,15 +188,15 @@ class AuthController {
           information: [response.body, response.request?.url.toString() ?? ''],
           fatal: false,
         );
-        return true; // Treat as expired/invalid if backend call fails
+        return true;
       }
     } catch (e, s) {
       FirebaseCrashlytics.instance.recordError(
         e, s,
         reason: 'Connection error checking token expiration with backend',
-        fatal: false, // Not necessarily fatal if it's just connectivity for this check
+        fatal: false,
       );
-      return true; // Assume expired/invalid on network error to prompt re-login
+      return true;
     }
   }
 
@@ -208,7 +206,7 @@ class AuthController {
 
     final String? token = await loadToken();
     if (token == null || token.isEmpty) {
-      return AuthResult(success: false, errorMessage: 'No token found for validation status check.', userMessage: 'Usuário não autenticado.');
+      return AuthResult(success: false, errorMessage: 'No token found for validation status check.', userMessage: 'User not authenticated.');
     }
 
     try {
@@ -222,9 +220,9 @@ class AuthController {
       );
 
       if (response.statusCode == 200) {
-        bool isValidated = response.body.trim().toLowerCase() == 'true';
+        bool isValidated = jsonDecode(response.body) as bool;
         FirebaseCrashlytics.instance.log('User validation status: $isValidated');
-        return AuthResult(success: true, userMessage: isValidated ? 'Conta validada.' : 'Conta não validada.', token: isValidated.toString()); // Token field misused for isValidated status
+        return AuthResult(success: true, userMessage: isValidated ? 'Account validated.' : 'Account not validated.', token: isValidated.toString());
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -242,7 +240,7 @@ class AuthController {
         reason: 'Connection error checking user validation status',
         fatal: false,
       );
-      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Não foi possível verificar status de validação.');
+      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Could not verify validation status.');
     }
   }
 
@@ -252,7 +250,7 @@ class AuthController {
 
     final String? token = await loadToken();
     if (token == null || token.isEmpty) {
-      return AuthResult(success: false, errorMessage: 'No token found for sending validation code.', userMessage: 'Usuário não autenticado para reenviar código.');
+      return AuthResult(success: false, errorMessage: 'No token found for sending validation code.', userMessage: 'User not authenticated to resend code.');
     }
 
     try {
@@ -267,7 +265,7 @@ class AuthController {
 
       if (response.statusCode == 200) {
         FirebaseCrashlytics.instance.log('Validation code sent successfully');
-        return AuthResult(success: true, userMessage: response.body); // Backend returns a string message directly
+        return AuthResult(success: true, userMessage: response.body);
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -285,7 +283,7 @@ class AuthController {
         reason: 'Connection error sending validation code',
         fatal: false,
       );
-      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Não foi possível enviar o código de validação.');
+      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Could not send validation code.');
     }
   }
 
@@ -295,7 +293,7 @@ class AuthController {
 
     final String? token = await loadToken();
     if (token == null || token.isEmpty) {
-      return AuthResult(success: false, errorMessage: 'No token found for validating account.', userMessage: 'Usuário não autenticado para validar conta.');
+      return AuthResult(success: false, errorMessage: 'No token found for validating account.', userMessage: 'User not authenticated to validate account.');
     }
 
     try {
@@ -313,7 +311,7 @@ class AuthController {
 
       if (response.statusCode == 200) {
         FirebaseCrashlytics.instance.log('User account validated successfully.');
-        return AuthResult(success: true, userMessage: response.body); // Backend returns a string message directly
+        return AuthResult(success: true, userMessage: response.body);
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -331,7 +329,7 @@ class AuthController {
         reason: 'Connection error validating user account',
         fatal: false,
       );
-      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Não foi possível validar sua conta. Verifique o código.');
+      return AuthResult(success: false, errorMessage: 'Error connecting to the server: $e', userMessage: 'Could not validate your account. Check the code.');
     }
   }
 }

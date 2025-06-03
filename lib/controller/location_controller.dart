@@ -1,5 +1,3 @@
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -7,12 +5,15 @@ import 'package:OrangeScoutFE/util/token_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+
 import '../dto/error_response_dto.dart';
 import '../dto/location_dto.dart';
 
 class LocationController {
   final String? _baseUrl = dotenv.env['API_BASE_URL'];
-  final http.Client _httpClient; // Use an injected http client for testing
+  final http.Client _httpClient;
 
   LocationController({http.Client? httpClient}) : _httpClient = httpClient ?? http.Client();
 
@@ -33,7 +34,6 @@ class LocationController {
   String _parseBackendErrorMessage(http.Response response) {
     try {
       final Map<String, dynamic> errorData = jsonDecode(response.body);
-      // Assuming ErrorResponse DTO exists in Flutter
       final errorResponse = ErrorResponse.fromJson(errorData);
 
       if (errorResponse.message != null && errorResponse.message!.isNotEmpty) {
@@ -52,7 +52,7 @@ class LocationController {
         information: [response.body, response.statusCode.toString()],
         fatal: false,
       );
-      return 'An unexpected error occurred parsing server response. Status: ${response.statusCode}';
+      return 'An unexpected error occurred while parsing the server response. Status: ${response.statusCode}';
     }
     return 'An unknown error occurred. Status: ${response.statusCode}';
   }
@@ -99,7 +99,6 @@ class LocationController {
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       FirebaseCrashlytics.instance.log('Location service disabled on device.');
-      // Consider throwing a custom exception or returning a specific error state
       return null;
     }
 
@@ -114,7 +113,6 @@ class LocationController {
 
     if (permission == LocationPermission.deniedForever) {
       FirebaseCrashlytics.instance.log('Location permission denied permanently by user.');
-      // Advise user to go to settings
       return null;
     }
 
@@ -132,13 +130,13 @@ class LocationController {
       return LocationDTO(
         latitude: position.latitude,
         longitude: position.longitude,
-        venueName: venueName ?? 'Localização Desconhecida', // Provide a fallback name
+        venueName: venueName ?? 'Unknown Location',
       );
     } catch (e, s) {
       FirebaseCrashlytics.instance.recordError(
         e, s,
         reason: 'Error getting current device position',
-        fatal: true, // This could be a critical issue for core functionality
+        fatal: true,
       );
       return null;
     }
@@ -155,11 +153,11 @@ class LocationController {
     final String? token = await loadToken();
     if (token == null) {
       FirebaseCrashlytics.instance.log('No token found for getLocationById. User might be logged out.');
-      return null; // Or throw an Unauthorized exception
+      return null;
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/locations/$locationId'); // PADRONIZAÇÃO: /locations/{id}
+      final url = Uri.parse('${_getApiBaseUrl()}/locations/$locationId');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -175,7 +173,7 @@ class LocationController {
       } else if (response.statusCode == 404) {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.log('Location ID: $locationId not found. Message: $errorMessage');
-        return null; // ResourceNotFoundException in backend translates to null here
+        return null;
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -204,7 +202,7 @@ class LocationController {
     FirebaseAnalytics.instance.logEvent(name: 'open_match_location_attempt', parameters: {'location_id': locationId});
     FirebaseCrashlytics.instance.log('Attempting to open match location for Location ID: $locationId on maps.');
 
-    final locationData = await getLocationById(locationId); // Reuse existing method
+    final locationData = await getLocationById(locationId);
     if (locationData == null) {
       FirebaseCrashlytics.instance.log('Location data not found for ID: $locationId. Cannot open maps.');
       return false;
@@ -214,15 +212,17 @@ class LocationController {
     // Build Google Maps URL
     // Use the `venueName` for a better search experience if available
     if (locationData.venueName.isNotEmpty) {
-      googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}';
+      // Corrected URL for place search with lat/long
+      googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(locationData.venueName)},${locationData.latitude},${locationData.longitude}';
     } else {
+      // Fallback to just coordinates if venueName is empty
       googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}';
     }
 
     final Uri uri = Uri.parse(googleMapsUrl);
 
-    if (await canLaunchUrl(uri)) { // Use uri instead of googleMapsUrl string directly in canLaunchUrl
-      await launchUrl(uri, mode: LaunchMode.externalApplication); // Use externalApplication for maps
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
       FirebaseAnalytics.instance.logEvent(
         name: 'match_location_opened_successfully',
         parameters: {'location_id': locationId, 'latitude': locationData.latitude, 'longitude': locationData.longitude},
@@ -262,7 +262,7 @@ class LocationController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/locations'); // PADRONIZAÇÃO: /locations para buscar todas
+      final url = Uri.parse('${_getApiBaseUrl()}/locations');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -277,19 +277,17 @@ class LocationController {
 
         if (locations.isEmpty) {
           FirebaseAnalytics.instance.logEvent(name: 'open_all_locations_no_data');
-          FirebaseCrashlytics.instance.log('No locations found to open on maps.');
+          FirebaseCrashlytics.instance.log('No locations found to open.');
           return false;
         }
 
         String googleMapsUrl;
         if (locations.length == 1) {
           final loc = locations[0];
-          googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${loc.latitude},${loc.longitude}';
+          googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(loc.venueName)},${loc.latitude},${loc.longitude}';
         } else {
-          // For multiple locations, build a directions URL with waypoints
-          // Google Maps URL scheme: https://www.google.com/maps/dir/?api=1&origin=...&destination=...&waypoints=...
-          // A simpler approach for multiple markers on a map, not directions:
-          // Just list all coords, maps usually shows them: https://www.google.com/maps/search/?api=1&query=lat1,lon1;lat2,lon2
+          // For multiple markers on a map, use the 'q' parameter with multiple coordinates.
+          // Example: https://www.google.com/maps/search/?api=1&query=34.0522,-118.2437;34.0549,-118.2426
           final String query = locations.map((loc) => '${loc.latitude},${loc.longitude}').join(';');
           googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$query';
         }
@@ -317,7 +315,7 @@ class LocationController {
         FirebaseCrashlytics.instance.recordError(
           'Failed to fetch all locations: ${response.statusCode}',
           StackTrace.current,
-          reason: 'Backend response error for fetching all locations',
+          reason: 'Backend response error for all locations',
           information: [response.body, response.request?.url.toString() ?? ''],
           fatal: false,
         );

@@ -106,7 +106,7 @@ class VerificationScreenState extends State<VerificationScreen> {
       if (mounted) {
         PersistentSnackbar.show(
           context: context,
-          message: 'Por favor, aguarde antes de reenviar o código.',
+          message: 'Please, wait before resending the code.',
           backgroundColor: Colors.orange.shade700,
           textColor: Colors.white,
           icon: Icons.timer,
@@ -126,7 +126,7 @@ class VerificationScreenState extends State<VerificationScreen> {
       if (result.success) {
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Código enviado com sucesso!',
+          message: result.userMessage ?? 'Code successfully sent!',
           backgroundColor: Colors.green.shade700,
           textColor: Colors.white,
           icon: Icons.check_circle_outline,
@@ -138,7 +138,7 @@ class VerificationScreenState extends State<VerificationScreen> {
       } else {
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Falha ao enviar código. Tente novamente.',
+          message: result.userMessage ?? 'Failed to send code. Try again.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -161,7 +161,7 @@ class VerificationScreenState extends State<VerificationScreen> {
       FirebaseAnalytics.instance.logEvent(name: 'validate_code_failed', parameters: {'reason': 'form_validation_failed'});
       PersistentSnackbar.show(
         context: context,
-        message: 'Por favor, insira o código de 6 dígitos.',
+        message: 'Please, insert the 6 digit code.',
         backgroundColor: Colors.red.shade700,
         textColor: Colors.white,
         icon: Icons.error_outline,
@@ -181,7 +181,7 @@ class VerificationScreenState extends State<VerificationScreen> {
       if (result.success) {
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'E-mail validado com sucesso!',
+          message: result.userMessage ?? 'E-mail successfully validated!',
           backgroundColor: Colors.green.shade700,
           textColor: Colors.white,
           icon: Icons.check_circle_outline,
@@ -197,7 +197,7 @@ class VerificationScreenState extends State<VerificationScreen> {
       } else {
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Código inválido ou expirado. Tente novamente.',
+          message: result.userMessage ?? 'Code invalid or expired. Try again.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -269,7 +269,7 @@ class VerificationScreenState extends State<VerificationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Validação de E-mail", style: TextStyle(color: Colors.white)),
+        title: const Text("E-mail validation.", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF3A2E2E),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -308,23 +308,23 @@ class VerificationScreenState extends State<VerificationScreen> {
                   ),
                   const SizedBox(height: 40),
                   Text(
-                    'Um código de validação foi enviado para o seu e-mail. Por favor, insira-o abaixo.',
+                    'A validation code was sent to your email. Please, insert it.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   const SizedBox(height: 20),
                   _buildTextField( // Use helper for consistency
                     controller: _codeController,
-                    hintText: "Código de Validação",
-                    labelText: "Código de 6 dígitos",
+                    hintText: "Validation code",
+                    labelText: "6 digit code",
                     icon: Icons.vpn_key,
                     keyboardType: TextInputType.number, // Numeric keyboard
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'O código não pode estar em branco.';
+                        return 'The code cannot be blank.';
                       }
                       if (value.length != 6 || !RegExp(r'^[0-9]+$').hasMatch(value)) {
-                        return 'O código deve ter 6 dígitos numéricos.';
+                        return 'The code must have 6 number digits.';
                       }
                       return null;
                     },
@@ -350,7 +350,7 @@ class VerificationScreenState extends State<VerificationScreen> {
                       ),
                     )
                         : const Text(
-                      'Validar',
+                      'Validate',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -368,8 +368,8 @@ class VerificationScreenState extends State<VerificationScreen> {
                     )
                         : Text(
                       _isCooldownActive
-                          ? 'Reenviar código em ($_remainingCooldownSeconds s)'
-                          : 'Reenviar código',
+                          ? 'Resent code on ($_remainingCooldownSeconds s)'
+                          : 'Resend code',
                       style: TextStyle(
                         decoration: TextDecoration.underline,
                         color: (_isLoading || _isCooldownActive) ? Colors.grey : Colors.blue,
@@ -379,7 +379,7 @@ class VerificationScreenState extends State<VerificationScreen> {
                   if (_isLoading && _lastSentTime == null) // Show "Sending..." only for the initial send
                     const Padding(
                       padding: EdgeInsets.only(top: 8.0),
-                      child: Text('Enviando...', style: TextStyle(color: Colors.grey)),
+                      child: Text('Sending...', style: TextStyle(color: Colors.grey)),
                     ),
                 ],
               ),

@@ -223,7 +223,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     if (currentMatchId == null) {
       PersistentSnackbar.show(
         context: context,
-        message: 'Erro: ID da partida não encontrado para finalizar.',
+        message: 'Error: match ID not found to finish.',
         backgroundColor: Colors.red.shade700,
         textColor: Colors.white,
         icon: Icons.error_outline,
@@ -235,7 +235,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     if (success) {
       PersistentSnackbar.show(
         context: context,
-        message: 'Partida finalizada com sucesso!',
+        message: 'Match finished successfully!',
         backgroundColor: Colors.green.shade700,
         textColor: Colors.white,
         icon: Icons.check_circle_outline,
@@ -249,7 +249,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     } else {
       PersistentSnackbar.show(
         context: context,
-        message: 'Falha ao finalizar partida. Tente novamente.',
+        message: 'Failed finishing match. Try again.',
         backgroundColor: Colors.red.shade700,
         textColor: Colors.white,
         icon: Icons.error_outline,
@@ -275,7 +275,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         if (locationDTO == null) {
           PersistentSnackbar.show(
             context: context,
-            message: 'Não foi possível obter a localização. Partida será salva sem localização.',
+            message: 'Not possible to fetch location. Match will be saved without location.',
             backgroundColor: Colors.orange.shade700,
             textColor: Colors.white,
             icon: Icons.warning_amber_rounded,
@@ -329,7 +329,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       if (isFinished) {
         PersistentSnackbar.show(
           context: context,
-          message: 'Partida finalizada com sucesso!',
+          message: 'Match finished successfully!',
           backgroundColor: Colors.green.shade700,
           textColor: Colors.white,
           icon: Icons.check_circle_outline,
@@ -346,7 +346,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         // If not finished, it's a progress save, show a less intrusive Snackbar
         PersistentSnackbar.show(
           context: context,
-          message: 'Progresso salvo automaticamente!',
+          message: 'Progress saved automatically!',
           backgroundColor: Colors.blueGrey.shade700,
           textColor: Colors.white,
           icon: Icons.save_alt,
@@ -361,7 +361,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         // If it failed while trying to finish, show a specific error
         PersistentSnackbar.show(
           context: context,
-          message: 'Falha ao finalizar partida. Tente novamente.',
+          message: 'Failed finishing match, try again.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -370,7 +370,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         // If it failed during automatic progress save
         PersistentSnackbar.show(
           context: context,
-          message: 'Falha ao salvar progresso automaticamente.',
+          message: 'Failed to automatically save progress.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -392,7 +392,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         debugPrint("Error: No team selected for scoring.");
         PersistentSnackbar.show(
           context: context,
-          message: 'Por favor, selecione um jogador e seu time para pontuar!',
+          message: 'Please, select a player and its team to score!',
           backgroundColor: Colors.orange.shade700,
           textColor: Colors.white,
           icon: Icons.warning_amber_rounded,
@@ -416,7 +416,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       } else {
         PersistentSnackbar.show(
           context: context,
-          message: 'Por favor, selecione um jogador primeiro!',
+          message: 'Please, first select a player!',
           backgroundColor: Colors.blueGrey.shade700,
           textColor: Colors.white,
           icon: Icons.info_outline,
@@ -449,7 +449,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     PersistentSnackbar.show(
       context: context,
-      message: '${enteringPlayer.playerName} entrou em quadra!',
+      message: '${enteringPlayer.playerName} is in the court!',
       backgroundColor: Colors.blueGrey.shade700,
       textColor: Colors.white,
     );
@@ -464,7 +464,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         if (selectedPlayer == null) {
           PersistentSnackbar.show(
             context: context,
-            message: 'Selecione um jogador para substituir!',
+            message: 'Select a player to substitute!',
             backgroundColor: Colors.blueGrey.shade700,
             textColor: Colors.white,
             icon: Icons.info_outline,
@@ -515,7 +515,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         } else {
           PersistentSnackbar.show(
             context: context,
-            message: 'Não há jogadores disponíveis para substituição neste time.',
+            message: 'There is no players available to substitution in this team.',
             backgroundColor: Colors.blueGrey.shade700,
             textColor: Colors.white,
             icon: Icons.info_outline,
@@ -545,7 +545,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         } else {
           PersistentSnackbar.show(
             context: context,
-            message: 'Por favor, selecione um jogador primeiro!',
+            message: 'Please, select a player first!',
             backgroundColor: Colors.blueGrey.shade700,
             textColor: Colors.white,
             icon: Icons.info_outline,
@@ -573,7 +573,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         } else {
           PersistentSnackbar.show(
             context: context,
-            message: 'Por favor, selecione um jogador primeiro!',
+            message: 'Please, select a player first!',
             backgroundColor: Colors.blueGrey.shade700,
             textColor: Colors.white,
             icon: Icons.info_outline,
@@ -617,7 +617,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             children: [
               ListTile(
                 leading: const Icon(Icons.menu_book, color: Colors.white),
-                title: const Text("Legenda", style: TextStyle(color: Colors.white)),
+                title: const Text("Legend", style: TextStyle(color: Colors.white)),
                 onTap: () {
                   FirebaseAnalytics.instance.logEvent(name: 'legend_menu_item_clicked');
                   Navigator.pop(context);
@@ -638,7 +638,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               ),
               ListTile(
                 leading: const Icon(Icons.flag, color: Colors.white),
-                title: const Text("Finalizar Partida", style: TextStyle(color: Colors.white)),
+                title: const Text("Finish match", style: TextStyle(color: Colors.white)),
                 onTap: () {
                   FirebaseAnalytics.instance.logEvent(name: 'finish_match_menu_item_clicked');
                   Navigator.pop(context);
@@ -648,7 +648,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               ListTile(
                 leading: const Icon(Icons.exit_to_app, color: Colors.red),
                 title: const Text(
-                  "Sair Sem Salvar",
+                  "Exit without saving",
                   style: TextStyle(color: Colors.red),
                 ),
                 onTap: () {
@@ -658,15 +658,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: const Text("Tem certeza?"),
-                        content: const Text("Todas as estatísticas não salvas serão perdidas."),
+                        title: const Text("Are you sure?"),
+                        content: const Text("All unsaved stats will be lost."),
                         actions: [
                           TextButton(
                             onPressed: () {
                               FirebaseAnalytics.instance.logEvent(name: 'exit_without_saving_canceled');
                               Navigator.pop(context);
                             },
-                            child: const Text("Cancelar", style: TextStyle(color: Colors.white)),
+                            child: const Text("Cancel", style: TextStyle(color: Colors.white)),
                           ),
                           TextButton(
                             onPressed: () {
@@ -679,7 +679,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                     (Route<dynamic> route) => false,
                               );
                             },
-                            child: const Text("Sair", style: TextStyle(color: Colors.red)),
+                            child: const Text("Exit", style: TextStyle(color: Colors.red)),
                           ),
                         ],
                       );
@@ -900,7 +900,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 } else {
                   return Center(
                     child: Text(
-                      'Por favor, gire seu dispositivo para o modo paisagem para jogar.',
+                      'Please, rotate your device to landscape mode to play.',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.orange),
                       textAlign: TextAlign.center,
                     ),

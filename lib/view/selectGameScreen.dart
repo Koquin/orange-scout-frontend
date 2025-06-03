@@ -70,8 +70,8 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
       FirebaseAnalytics.instance.logEvent(name: 'validation_needed_snackbar_shown');
       PersistentSnackbar.show(
         context: context,
-        message: validationResult.userMessage ?? "Você precisa validar seu email para continuar.",
-        actionLabel: "Validar",
+        message: validationResult.userMessage ?? "You need to validate your e-mail to continue.",
+        actionLabel: "Validate",
         onActionPressed: () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => const VerificationScreen()));
         },
@@ -95,8 +95,8 @@ class _SelectGameScreenState extends State<SelectGameScreen> {
       FirebaseAnalytics.instance.logEvent(name: 'teams_needed_snackbar_shown');
       PersistentSnackbar.show(
         context: context,
-        message: "Você precisa de pelo menos dois times para iniciar uma partida.",
-        actionLabel: "Criar Times",
+        message: "You need at least two teams to start a match.",
+        actionLabel: "Create teams",
         onActionPressed: () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => const TeamsScreen()));
         },

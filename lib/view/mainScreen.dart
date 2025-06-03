@@ -70,8 +70,8 @@ class _MainScreenState extends State<MainScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF3A2E2E),
-        title: const Text("Partida Inacabada", style: TextStyle(color: Colors.white)),
-        content: const Text("Você tem uma partida não finalizada. Deseja continuar?", style: TextStyle(color: Colors.white70)),
+        title: const Text("Match unfinished", style: TextStyle(color: Colors.white)),
+        content: const Text("You have an unfinished match. You want to continue it?", style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () async {
@@ -82,7 +82,7 @@ class _MainScreenState extends State<MainScreen> {
               if (success && mounted) {
                 PersistentSnackbar.show(
                   context: context,
-                  message: "Partida descartada com sucesso!",
+                  message: "Match finished successfully!",
                   backgroundColor: Colors.green.shade700,
                   textColor: Colors.white,
                   icon: Icons.check_circle_outline,
@@ -90,14 +90,14 @@ class _MainScreenState extends State<MainScreen> {
               } else if (mounted) {
                 PersistentSnackbar.show(
                   context: context,
-                  message: "Falha ao descartar partida.",
+                  message: "Failed to finish match.",
                   backgroundColor: Colors.red.shade700,
                   textColor: Colors.white,
                   icon: Icons.error_outline,
                 );
               }
             },
-            child: const Text("Não", style: TextStyle(color: Colors.redAccent)),
+            child: const Text("No", style: TextStyle(color: Colors.redAccent)),
           ),
           TextButton(
             onPressed: () {
@@ -123,7 +123,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               );
             },
-            child: const Text("Sim", style: TextStyle(color: Colors.greenAccent)),
+            child: const Text("Yes", style: TextStyle(color: Colors.greenAccent)),
           ),
         ],
       ),
@@ -181,7 +181,7 @@ class _MainScreenState extends State<MainScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white, size: 28),
-            tooltip: 'Sair',
+            tooltip: 'Exit',
             onPressed: _logout,
           ),
         ],
@@ -205,7 +205,7 @@ class _MainScreenState extends State<MainScreen> {
               width: 80,
               height: 80,
             ),
-            label: 'Iniciar Jogo',
+            label: 'Start game',
           ),
           BottomNavigationBarItem(
             icon: Image.asset(
@@ -215,7 +215,7 @@ class _MainScreenState extends State<MainScreen> {
               width: 80,
               height: 80,
             ),
-            label: 'Times',
+            label: 'Teams',
           ),
           BottomNavigationBarItem(
             icon: Image.asset(
@@ -225,7 +225,7 @@ class _MainScreenState extends State<MainScreen> {
               width: 80,
               height: 80,
             ),
-            label: 'Histórico',
+            label: 'History',
           ),
         ],
       ),

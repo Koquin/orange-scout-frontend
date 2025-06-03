@@ -94,7 +94,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       _isLoading = true; // Mantém o botão de salvar desabilitado
     });
     FirebaseAnalytics.instance.logEvent(name: 'fetch_team_details_attempt', parameters: {'team_id': widget.teamId});
-    FirebaseCrashlytics.instance.log('Tentando buscar detalhes do time para edição: ${widget.teamId}');
+    FirebaseCrashlytics.instance.log('Trying to fetch team details to edit: ${widget.teamId}');
 
     // CORREÇÃO: teamController.fetchTeamDetails retorna TeamDTO?
     final TeamDTO? fetchedTeamData = await _teamController.fetchTeamDetails(widget.teamId!);
@@ -115,7 +115,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         // Exibe erro se o time não for encontrado ou houver falha
         PersistentSnackbar.show(
           context: context,
-          message: 'Falha ao carregar detalhes do time ou time não encontrado.',
+          message: 'Failed fetching team details or team not found.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -136,7 +136,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       FirebaseAnalytics.instance.logEvent(name: 'save_team_failed', parameters: {'reason': 'validation_failed'});
       PersistentSnackbar.show(
         context: context,
-        message: 'Por favor, preencha todos os campos corretamente.',
+        message: 'Please, fill all fields correctly.',
         backgroundColor: Colors.red.shade700,
         textColor: Colors.white,
         icon: Icons.error_outline,
@@ -168,7 +168,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       if (result.success) {
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? "Time salvo com sucesso!",
+          message: result.userMessage ?? "Team successfully saved!",
           backgroundColor: Colors.green.shade700,
           textColor: Colors.white,
           icon: Icons.check_circle_outline,
@@ -179,7 +179,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         // Usa a userMessage do resultado para exibir a mensagem de erro
         PersistentSnackbar.show(
           context: context,
-          message: result.userMessage ?? 'Erro desconhecido ao salvar time.',
+          message: result.userMessage ?? 'Unknown error saving team.',
           backgroundColor: Colors.red.shade700,
           textColor: Colors.white,
           icon: Icons.error_outline,
@@ -240,7 +240,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.teamId == null ? 'Criar Time' : 'Editar Time'),
+        title: Text(widget.teamId == null ? 'Create team' : 'Edit team'),
         backgroundColor: const Color(0xFFFF4500),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -275,18 +275,18 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                     children: [
                       _buildTextField(
                         controller: _teamNameController,
-                        labelText: "Nome do Time",
-                        hintText: "Nome completo do time",
+                        labelText: "Team name",
+                        hintText: "Team's complete name",
                         maxLength: 100, // Limite de caracteres conforme o DTO
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return "O nome do time é obrigatório.";
+                            return "Team name is required.";
                           }
                           if (value.trim().length < 2) {
-                            return "O nome do time deve ter no mínimo 2 caracteres.";
+                            return "Team name must be at least 2 characters long.";
                           }
-                          if (value.trim().length > 100) {
-                            return "O nome do time deve ter no máximo 100 caracteres.";
+                          if (value.trim().length > 30) {
+                            return "Team name have a limit of 30 characters.";
                           }
                           return null;
                         },
@@ -294,18 +294,15 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       const SizedBox(height: 16),
                       _buildTextField(
                         controller: _abbreviationController,
-                        labelText: "Abreviação",
-                        hintText: "Ex: FLA, GSW, ORS",
+                        labelText: "Abbreviation",
+                        hintText: "E.G: FLA, GSW, ORS",
                         maxLength: 10, // Limite de caracteres conforme o DTO
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return "A abreviação é obrigatória.";
+                            return "Abbreviation is required.";
                           }
-                          if (value.trim().length < 2) {
-                            return "A abreviação deve ter no mínimo 2 caracteres.";
-                          }
-                          if (value.trim().length > 10) {
-                            return "A abreviação deve ter no máximo 10 caracteres.";
+                          if (value.trim().length < 2 || value.trim().length > 3) {
+                            return "Abbreviation must have 3 characters.";
                           }
                           return null;
                         },
@@ -348,7 +345,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       child: _isLoading // Exibe CircularProgressIndicator no botão
                           ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                           : Text(
-                        widget.teamId == null ? "Criar" : "Salvar", // Texto do botão dinâmico
+                        widget.teamId == null ? "Create" : "Save", // Texto do botão dinâmico
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -363,7 +360,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       child: IconButton(
                         onPressed: _pickImage,
                         icon: Image.asset('assets/images/UploadImageIcon.png', width: 40, height: 40),
-                        tooltip: "Escolher imagem do escudo",
+                        tooltip: "Pick team shield",
                       ),
                     ),
                   ],

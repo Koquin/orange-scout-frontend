@@ -127,34 +127,6 @@ class UserController {
     }
 
     try {
-      // Backend doesn't have a direct /app-users/me endpoint, so we fetch all
-      // and filter or if a specific /app-users/{id} for self is allowed.
-      // For now, if the user needs their own profile, it's typically fetched by ID after login,
-      // or the backend provides it in the login response.
-      // A backend endpoint for /app-users/me could be added.
-      // For this example, assuming backend only has /app-users/{id} (admin only)
-      // or if your token contains user ID, you'd make a direct call using that ID.
-      // For simplicity, we'll just check if the user is authenticated from the token and assume basic profile data is sufficient for now.
-      // If a full profile is needed, consider adding a /me endpoint in backend.
-
-      // As per the backend documentation, /app-users/{id} is ADMIN ONLY.
-      // If you need a user to fetch their own profile, the backend needs a /app-users/me endpoint or similar.
-      // For now, this method will serve as a placeholder or could be integrated with login response.
-
-      // **Alternative for self-profile: if your JWT contains user ID, you can fetch it via the ADMIN endpoint (not ideal but works for self-fetch if allowed)
-      // Or simply reuse the data from login response.**
-
-      // Since backend's /app-users is admin only, and /app-users/{id} is admin only,
-      // a normal user cannot fetch their own profile unless a /app-users/me endpoint is added on backend.
-      // For now, we will return null or rely on login response data.
-
-      // If you add /app-users/me endpoint in backend:
-      // final url = Uri.parse('${_getApiBaseUrl()}/app-users/me');
-      // final response = await _httpClient.get(url, headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'});
-      // if (response.statusCode == 200) {
-      //   return AppUserDTO.fromJson(jsonDecode(response.body));
-      // }
-
       FirebaseCrashlytics.instance.log('Fetching user profile requires a dedicated backend /app-users/me endpoint or handling via login response data.');
       return null; // Placeholder for now
     } catch (e, s) {

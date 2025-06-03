@@ -1,4 +1,3 @@
-// lib/controller/player_controller.dart
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -10,8 +9,8 @@ import '../dto/player_dto.dart';
 
 class PlayerOperationResult {
   final bool success;
-  final String? errorMessage;
-  final String? userMessage; // Message to show to the user
+  final String? errorMessage; // Internal error message for developers/logs
+  final String? userMessage; // User-friendly message for UI
 
   PlayerOperationResult({required this.success, this.errorMessage, this.userMessage});
 }
@@ -31,7 +30,7 @@ class PlayerController {
         reason: 'Player controller configuration error',
         fatal: false,
       );
-      throw Exception('API base URL not configured in .env file.');
+      throw Exception('API base URL not configured in the .env file.');
     }
     return _baseUrl!;
   }
@@ -58,12 +57,10 @@ class PlayerController {
         information: [response.body, response.statusCode.toString()],
         fatal: false,
       );
-      return 'An unexpected error occurred parsing server response. Status: ${response.statusCode}';
+      return 'An unexpected error occurred while parsing the server response. Status: ${response.statusCode}';
     }
     return 'An unknown error occurred. Status: ${response.statusCode}';
   }
-
-  // --- Player Endpoints ---
 
   /// Fetches all players for a specific team by its ID.
   /// Returns a list of PlayerDTOs on success, an empty list on failure or no players.
@@ -78,7 +75,7 @@ class PlayerController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/players/team/$teamId'); // **PADRONIZAÇÃO: /players/team/{teamId}**
+      final url = Uri.parse('${_getApiBaseUrl()}/players/team/$teamId');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -93,7 +90,7 @@ class PlayerController {
         FirebaseAnalytics.instance.logEvent(name: 'players_fetched_successfully', parameters: {'team_id': teamId, 'count': players.length});
         FirebaseCrashlytics.instance.log('Players fetched successfully for team $teamId. Count: ${players.length}');
         return players;
-      } else if (response.statusCode == 404) { // Team not found
+      } else if (response.statusCode == 404) {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.log('Team ID: $teamId not found for players. Message: $errorMessage');
         return [];
@@ -140,12 +137,12 @@ class PlayerController {
     final String? token = await loadToken();
     if (token == null) {
       FirebaseCrashlytics.instance.log('Token not found for adding player. User might be logged out.');
-      return PlayerOperationResult(success: false, errorMessage: 'Error: Token not found.', userMessage: 'Usuário não autenticado.');
+      return PlayerOperationResult(success: false, errorMessage: 'Error: Token not found.', userMessage: 'User not authenticated.');
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/players/team/$teamId'); // **PADRONIZAÇÃO: /players/team/{teamId}**
-      final playerDTO = PlayerDTO(playerName: playerName, jerseyNumber: jerseyNumber); // idPlayer is null for creation
+      final url = Uri.parse('${_getApiBaseUrl()}/players/team/$teamId');
+      final playerDTO = PlayerDTO(playerName: playerName, jerseyNumber: jerseyNumber);
 
       final response = await _httpClient.post(
         url,
@@ -153,13 +150,13 @@ class PlayerController {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: json.encode(playerDTO.toJson()), // **PADRONIZAÇÃO: Use toJson() from PlayerDTO**
+        body: json.encode(playerDTO.toJson()),
       );
 
-      if (response.statusCode == 201) { // Backend returns 201 CREATED
+      if (response.statusCode == 201) {
         FirebaseAnalytics.instance.logEvent(name: 'player_added_successfully', parameters: {'team_id': teamId, 'player_name': playerName});
         FirebaseCrashlytics.instance.log('Player $playerName added successfully to team $teamId.');
-        return PlayerOperationResult(success: true, userMessage: 'Jogador adicionado com sucesso!');
+        return PlayerOperationResult(success: true, userMessage: 'Player added successfully!');
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -177,7 +174,7 @@ class PlayerController {
         reason: 'Connection error adding player',
         fatal: false,
       );
-      return PlayerOperationResult(success: false, errorMessage: 'Connection error: $e', userMessage: 'Não foi possível adicionar o jogador. Verifique sua conexão.');
+      return PlayerOperationResult(success: false, errorMessage: 'Connection error: $e', userMessage: 'Could not add player. Check your connection.');
     }
   }
 
@@ -190,11 +187,11 @@ class PlayerController {
     final String? token = await loadToken();
     if (token == null) {
       FirebaseCrashlytics.instance.log('Token not found for deleting player. User might be logged out.');
-      return PlayerOperationResult(success: false, errorMessage: 'Error: Token not found.', userMessage: 'Usuário não autenticado.');
+      return PlayerOperationResult(success: false, errorMessage: 'Error: Token not found.', userMessage: 'User not authenticated.');
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/players/$playerId'); // **PADRONIZAÇÃO: /players/{id}**
+      final url = Uri.parse('${_getApiBaseUrl()}/players/$playerId');
       final response = await _httpClient.delete(
         url,
         headers: {
@@ -202,11 +199,11 @@ class PlayerController {
         },
       );
 
-      if (response.statusCode == 204) { // Backend returns 204 No Content for successful deletion
+      if (response.statusCode == 204) {
         FirebaseAnalytics.instance.logEvent(name: 'player_deleted_successfully', parameters: {'player_id': playerId});
         FirebaseCrashlytics.instance.log('Player $playerId deleted successfully.');
-        return PlayerOperationResult(success: true, userMessage: 'Jogador deletado com sucesso!');
-      } else if (response.statusCode == 404) { // Not found
+        return PlayerOperationResult(success: true, userMessage: 'Player deleted successfully!');
+      } else if (response.statusCode == 404) {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.log('Player ID: $playerId not found for deletion. Message: $errorMessage');
         return PlayerOperationResult(success: false, errorMessage: 'Player not found: ${response.statusCode}', userMessage: errorMessage);
@@ -228,7 +225,7 @@ class PlayerController {
         reason: 'Connection error deleting player',
         fatal: false,
       );
-      return PlayerOperationResult(success: false, errorMessage: 'Connection error: $e', userMessage: 'Não foi possível deletar o jogador. Verifique sua conexão.');
+      return PlayerOperationResult(success: false, errorMessage: 'Connection error: $e', userMessage: 'Could not delete player. Check your connection.');
     }
   }
 
@@ -245,12 +242,12 @@ class PlayerController {
     final String? token = await loadToken();
     if (token == null) {
       FirebaseCrashlytics.instance.log('Token not found for editing player. User might be logged out.');
-      return PlayerOperationResult(success: false, errorMessage: 'Error: Token not found.', userMessage: 'Usuário não autenticado.');
+      return PlayerOperationResult(success: false, errorMessage: 'Error: Token not found.', userMessage: 'User not authenticated.');
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/players/$playerId'); // **PADRONIZAÇÃO: /players/{id}**
-      final playerDTO = PlayerDTO(idPlayer: playerId, playerName: playerName, jerseyNumber: jerseyNumber); // Include ID in DTO for PUT
+      final url = Uri.parse('${_getApiBaseUrl()}/players/$playerId');
+      final playerDTO = PlayerDTO(idPlayer: playerId, playerName: playerName, jerseyNumber: jerseyNumber);
 
       final response = await _httpClient.put(
         url,
@@ -258,13 +255,13 @@ class PlayerController {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: json.encode(playerDTO.toJson()), // **PADRONIZAÇÃO: Use toJson() from PlayerDTO**
+        body: json.encode(playerDTO.toJson()),
       );
 
-      if (response.statusCode == 200) { // Backend returns 200 OK
+      if (response.statusCode == 200) {
         FirebaseAnalytics.instance.logEvent(name: 'player_updated_successfully', parameters: {'player_id': playerId, 'player_name': playerName});
         FirebaseCrashlytics.instance.log('Player $playerName updated successfully.');
-        return PlayerOperationResult(success: true, userMessage: 'Jogador atualizado com sucesso!');
+        return PlayerOperationResult(success: true, userMessage: 'Player updated successfully!');
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -282,7 +279,7 @@ class PlayerController {
         reason: 'Connection error updating player',
         fatal: false,
       );
-      return PlayerOperationResult(success: false, errorMessage: 'Connection error: $e', userMessage: 'Não foi possível atualizar o jogador. Verifique sua conexão.');
+      return PlayerOperationResult(success: false, errorMessage: 'Connection error: $e', userMessage: 'Could not update player. Check your connection.');
     }
   }
 }

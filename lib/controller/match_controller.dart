@@ -1,4 +1,3 @@
-// lib/controller/match_controller.dart
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -55,8 +54,6 @@ class MatchController {
     return 'An unknown error occurred. Status: ${response.statusCode}';
   }
 
-  // --- Match Endpoints ---
-
   /// Checks for the last unfinished match for the authenticated user.
   /// Returns MatchDTO if found, null otherwise.
   Future<MatchDTO?> checkLastUnfinishedMatch() async {
@@ -70,7 +67,7 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches/last-unfinished'); // PADRONIZAÇÃO: /matches/last-unfinished
+      final url = Uri.parse('${_getApiBaseUrl()}/matches/last-unfinished');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -97,7 +94,7 @@ class MatchController {
           information: [response.body, response.request?.url.toString() ?? ''],
           fatal: false,
         );
-        return null; // Return null on error
+        return null;
       }
     } catch (e, s) {
       FirebaseCrashlytics.instance.recordError(
@@ -105,7 +102,7 @@ class MatchController {
         reason: 'Connection error checking last unfinished match',
         fatal: false,
       );
-      return null; // Return null on connection error
+      return null;
     }
   }
 
@@ -122,8 +119,8 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches/finish/$matchId'); // PADRONIZAÇÃO: /matches/finish/{id}
-      final response = await _httpClient.put( // PADRONIZAÇÃO: PUT method
+      final url = Uri.parse('${_getApiBaseUrl()}/matches/finish/$matchId');
+      final response = await _httpClient.put(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -158,8 +155,8 @@ class MatchController {
 
   /// Saves a new match or updates an existing match's progress.
   /// Returns the match ID on success, null on failure.
-  Future<int?> saveOrUpdateMatch(MatchDTO matchDTO) async { // PADRONIZAÇÃO: Receive MatchDTO
-    FirebaseAnalytics.instance.logEvent(name: 'save_or_update_match_attempt', parameters: {'game_mode': matchDTO.gameMode, 'is_finished': matchDTO.finished, 'match_id': matchDTO.idMatch});
+  Future<int?> saveOrUpdateMatch(MatchDTO matchDTO) async {
+    FirebaseAnalytics.instance.logEvent(name: 'save_or_update_match_attempt', parameters: {'game_mode': matchDTO.gameMode, 'is_finished': matchDTO.finished.toString(), 'match_id': matchDTO.idMatch});
     FirebaseCrashlytics.instance.log('Attempting to save/update match for game mode: ${matchDTO.gameMode}, finished: ${matchDTO.finished}, matchId: ${matchDTO.idMatch}');
 
     final String? token = await loadToken();
@@ -169,21 +166,21 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches'); // PADRONIZAÇÃO: Unified endpoint /matches (POST)
+      final url = Uri.parse('${_getApiBaseUrl()}/matches');
       final response = await _httpClient.post(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(matchDTO.toJson()), // PADRONIZAÇÃO: Use toJson() from MatchDTO
+        body: jsonEncode(matchDTO.toJson()),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseBody = jsonDecode(response.body);
-        final newMatchId = responseBody['matchId']; // Backend returns Map<String, Long> {"matchId": 123}
+        final newMatchId = responseBody['matchId'];
 
-        FirebaseAnalytics.instance.logEvent(name: 'match_saved_successfully', parameters: {'game_mode': matchDTO.gameMode, 'is_finished': matchDTO.finished, 'match_id': newMatchId});
+        FirebaseAnalytics.instance.logEvent(name: 'match_saved_successfully', parameters: {'game_mode': matchDTO.gameMode, 'is_finished': matchDTO.finished.toString(), 'match_id': newMatchId});
         FirebaseCrashlytics.instance.log('Match saved successfully. ID: $newMatchId');
         return newMatchId;
       } else {
@@ -220,7 +217,7 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches/user-history'); // PADRONIZAÇÃO: /matches/user-history
+      final url = Uri.parse('${_getApiBaseUrl()}/matches/user-history');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -273,7 +270,7 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches/$matchId'); // PADRONIZAÇÃO: /matches/{id}
+      final url = Uri.parse('${_getApiBaseUrl()}/matches/$matchId');
       final response = await _httpClient.delete(
         url,
         headers: {
@@ -282,7 +279,7 @@ class MatchController {
         },
       );
 
-      if (response.statusCode == 200 || response.statusCode == 204) { // Backend returns 204 No Content
+      if (response.statusCode == 200 || response.statusCode == 204) {
         FirebaseAnalytics.instance.logEvent(name: 'match_deleted_successfully', parameters: {'match_id': matchId});
         FirebaseCrashlytics.instance.log('Match $matchId deleted successfully.');
         return true;
@@ -320,7 +317,7 @@ class MatchController {
     }
 
     try {
-      final statsUrl = Uri.parse('${_getApiBaseUrl()}/stats/match/$matchId'); // PADRONIZAÇÃO: /stats/match/{matchId}
+      final statsUrl = Uri.parse('${_getApiBaseUrl()}/stats/match/$matchId');
       final response = await _httpClient.get(
         statsUrl,
         headers: {
@@ -336,7 +333,6 @@ class MatchController {
         FirebaseCrashlytics.instance.log('Match stats fetched successfully for ID: $matchId. Count: ${stats.length}');
         return stats;
       } else if (response.statusCode == 404) {
-        // Match not found for stats
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.log('Match ID: $matchId not found for stats. Message: $errorMessage');
         return null;
@@ -372,7 +368,7 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches/$matchId'); // Backend endpoint: /matches/{id}
+      final url = Uri.parse('${_getApiBaseUrl()}/matches/$matchId');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -388,7 +384,7 @@ class MatchController {
       } else if (response.statusCode == 404) {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.log('Match ID: $matchId not found. Message: $errorMessage');
-        return null; // ResourceNotFoundException in backend translates to null here
+        return null;
       } else {
         final errorMessage = _parseBackendErrorMessage(response);
         FirebaseCrashlytics.instance.recordError(
@@ -421,7 +417,7 @@ class MatchController {
     }
 
     try {
-      final url = Uri.parse('${_getApiBaseUrl()}/matches/validate-start'); // Backend endpoint: /matches/validate-start
+      final url = Uri.parse('${_getApiBaseUrl()}/matches/validate-start');
       final response = await _httpClient.get(
         url,
         headers: {
@@ -431,12 +427,7 @@ class MatchController {
       );
 
       if (response.statusCode == 200) {
-        // Backend returns a boolean directly in the response body
-        // e.g., "true" or "false" as a string, which jsonDecode might handle as bool
-        // or just plain text. We parse it to boolean.
-        bool canStart = jsonDecode(response.body) as bool; // Assuming backend returns boolean JSON
-        // If backend returns "true"/"false" string: bool canStart = response.body.trim().toLowerCase() == 'true';
-        print("Response = 200 no validateSTARTGAME");
+        bool canStart = jsonDecode(response.body) as bool;
         FirebaseAnalytics.instance.logEvent(name: 'validate_start_game_result', parameters: {'can_start': canStart.toString()});
         FirebaseCrashlytics.instance.log('User can start game: $canStart');
         return canStart;
@@ -449,7 +440,7 @@ class MatchController {
           information: [response.body, response.request?.url.toString() ?? ''],
           fatal: false,
         );
-        return false; // Assume cannot start game on error
+        return false;
       }
     } catch (e, s) {
       FirebaseCrashlytics.instance.recordError(
@@ -457,7 +448,7 @@ class MatchController {
         reason: 'Connection error validating start game',
         fatal: false,
       );
-      return false; // Assume cannot start game on connection error
+      return false;
     }
   }
 

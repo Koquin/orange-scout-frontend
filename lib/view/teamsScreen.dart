@@ -125,7 +125,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       if (mounted) {
         PersistentSnackbar.show(
           context: context,
-          message: "Lista de times atualizada!",
+          message: "Team list updated!",
           backgroundColor: Colors.blueGrey.shade700,
           textColor: Colors.white,
           icon: Icons.refresh,
@@ -149,7 +149,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       if (mounted) {
         PersistentSnackbar.show(
           context: context,
-          message: "Time criado com sucesso! Lista atualizada.",
+          message: "Team created successfully. List updated.",
           backgroundColor: Colors.green.shade700,
           textColor: Colors.white,
           icon: Icons.check_circle_outline,
@@ -217,14 +217,14 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
-                      'Erro ao carregar times.',
+                      'Error fetching teams.',
                       style: TextStyle(color: Colors.white, fontSize: 18),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton(
                       onPressed: _fetchTeams,
-                      child: const Text('Tentar Novamente'),
+                      child: const Text('Try again.'),
                     ),
                   ],
                 ),
@@ -232,7 +232,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   : _teams.isEmpty // Display "No teams" message if empty after loading
                   ? Center(
                 child: Text(
-                  'Nenhum time encontrado. Crie um para começar!',
+                  'No team found. Create one to start!',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white70),
                   textAlign: TextAlign.center,
                 ),
