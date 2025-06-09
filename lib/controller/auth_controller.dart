@@ -9,13 +9,10 @@ import '../dto/login_request_dto.dart';
 import '../dto/login_response_dto.dart';
 import '../dto/register_request_dto.dart';
 import '../dto/validation_request_dto.dart';
-import '../dto/auth_result_dto.dart'; // Corrected import for AuthResult
+import '../dto/auth_result_dto.dart';
 
 class AuthController {
   final String? _baseUrl = dotenv.env['API_BASE_URL'];
-  final http.Client _httpClient;
-
-  AuthController({http.Client? httpClient}) : _httpClient = httpClient ?? http.Client();
 
   String _getApiBaseUrl() {
     if (_baseUrl == null || _baseUrl!.isEmpty) {
@@ -63,17 +60,14 @@ class AuthController {
   Future<AuthResult> loginUser(String email, String password) async {
     FirebaseAnalytics.instance.logLogin(loginMethod: 'email');
     FirebaseCrashlytics.instance.log('Login attempt started for email: $email');
-
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/auth/login');
       final loginRequest = LoginRequest(email: email, password: password);
-
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(loginRequest.toJson()),
       );
-
       if (response.statusCode == 200) {
         final loginResponse = LoginResponse.fromJson(jsonDecode(response.body));
         if (loginResponse.token.isEmpty) {
@@ -122,7 +116,7 @@ class AuthController {
       final url = Uri.parse('${_getApiBaseUrl()}/auth/register');
       final registerRequest = RegisterRequest(username: username, email: email, password: password);
 
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(registerRequest.toJson()),
@@ -169,7 +163,7 @@ class AuthController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/auth/isTokenExpired');
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'token': token}),
@@ -211,7 +205,7 @@ class AuthController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/auth/isValidated');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -255,7 +249,7 @@ class AuthController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/auth/resendValidationCode');
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -300,7 +294,7 @@ class AuthController {
       final url = Uri.parse('${_getApiBaseUrl()}/auth/validate');
       final validationRequest = ValidationRequest(code: code);
 
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {
           'Authorization': 'Bearer $token',

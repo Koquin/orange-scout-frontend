@@ -76,7 +76,7 @@ class PlayerController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/players/team/$teamId');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -144,7 +144,7 @@ class PlayerController {
       final url = Uri.parse('${_getApiBaseUrl()}/players/team/$teamId');
       final playerDTO = PlayerDTO(playerName: playerName, jerseyNumber: jerseyNumber);
 
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ class PlayerController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/players/$playerId');
-      final response = await _httpClient.delete(
+      final response = await http.delete(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -249,7 +249,7 @@ class PlayerController {
       final url = Uri.parse('${_getApiBaseUrl()}/players/$playerId');
       final playerDTO = PlayerDTO(idPlayer: playerId, playerName: playerName, jerseyNumber: jerseyNumber);
 
-      final response = await _httpClient.put(
+      final response = await http.put(
         url,
         headers: {
           'Content-Type': 'application/json',

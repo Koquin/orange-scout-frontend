@@ -106,16 +106,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   /// Opens a specific match location on Google Maps.
-  /// It receives a LocationDTO, which includes latitude, longitude, and venueName.
+  /// It receives a LocationDTO, which includes latitude and longitude.
   Future<void> _openMatchLocationOnMaps(LocationDTO location) async {
     FirebaseAnalytics.instance.logEvent(name: 'open_single_match_location_button_tapped', parameters: {'location_id': location.id});
-    // Use the controller's method which is designed to handle this.
-    // The controller internally fetches location details from backend if only an ID is passed.
-    // For this specific method, we already have the LocationDTO, so we might make a specific
-    // call in LocationController if it supports directly launching from DTO.
-    // For now, let's assume it still fetches by ID, or we pass the necessary coords.
-
-    // Updated: LocationController.openMatchLocationOnMaps now accepts locationId
     bool success = await _locationController.openMatchLocationOnMaps(location.id!);
 
     if (!success && mounted) {
@@ -129,22 +122,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  /// Opens all match locations on Google Maps.
-  Future<void> _openAllLocationsOnMaps() async {
-    FirebaseAnalytics.instance.logEvent(name: 'open_all_locations_button_tapped');
-    bool success = await _locationController.openAllMatchLocationsOnMaps(); // Use the controller's method
-    if (!success && mounted) {
-      PersistentSnackbar.show(
-        context: context,
-        message: 'Could not open all locations or no location found.',
-        backgroundColor: Colors.red.shade700,
-        textColor: Colors.white,
-        icon: Icons.error_outline,
-      );
-    }
-  }
-
-  /// Deletes a specific match.
   Future<void> _deleteMatch(int matchId) async {
     FirebaseAnalytics.instance.logEvent(name: 'delete_match_button_tapped', parameters: {'match_id': matchId});
     FirebaseCrashlytics.instance.log('Attempting to delete match: $matchId');
@@ -175,7 +152,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
 
     if (confirmDelete == true) {
-      // Call the controller's delete method
       bool success = await _matchController.deleteMatch(matchId);
       if (success && mounted) {
         PersistentSnackbar.show(
@@ -201,9 +177,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Orientation is set in initState, so no need for SystemChrome here again.
-    // build method is called multiple times.
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -222,20 +195,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Match history', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
-                  IconButton(
-                    icon: const Icon(Icons.location_on, color: Colors.blueAccent, size: 30),
-                    tooltip: 'See all locations',
-                    onPressed: _openAllLocationsOnMaps, // Call the unified method
-                  ),
-                ],
-              ),
-            ),
             Expanded(
               child: isLoading
                   ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -268,7 +227,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   : ListView.builder(
                 itemCount: matches.length,
                 itemBuilder: (context, index) {
-                  final match = matches[index]; // Now a MatchDTO
+                  final match = matches[index];
                   final DateTime matchDate = DateTime.parse(match.matchDate);
                   final String formattedDate = "${matchDate.day.toString().padLeft(2, '0')}/${matchDate.month.toString().padLeft(2, '0')}/${matchDate.year}";
 
@@ -308,11 +267,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                // Display Team 1 Logo and Abbreviation
-                                _buildTeamLogo(match.teamOne.logoPath), // Use TeamDTO
+                                _buildTeamLogo(match.teamOne.logoPath),
                                 const SizedBox(width: 8),
                                 Text(
-                                  match.teamOne.abbreviation, // Use TeamDTO
+                                  match.teamOne.abbreviation,
                                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(width: 15),
@@ -329,11 +287,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 const SizedBox(width: 15),
                                 // Display Team 2 Logo and Abbreviation
                                 Text(
-                                  match.teamTwo.abbreviation, // Use TeamDTO
+                                  match.teamTwo.abbreviation,
                                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(width: 8),
-                                _buildTeamLogo(match.teamTwo.logoPath), // Use TeamDTO
+                                _buildTeamLogo(match.teamTwo.logoPath),
                               ],
                             ),
                           ),
@@ -343,8 +301,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             tooltip: 'See location',
                             onPressed: () {
                               FirebaseAnalytics.instance.logEvent(name: 'view_match_location_button_tapped', parameters: {'match_id': match.idMatch});
-                              if (match.location != null && match.location!.id != null) { // Access ID from LocationDTO
-                                _openMatchLocationOnMaps(match.location!); // Pass LocationDTO or its ID
+                              if (match.location != null && match.location!.id != null) {
+                                _openMatchLocationOnMaps(match.location!);
                               } else {
                                 PersistentSnackbar.show(
                                   context: context,
@@ -381,7 +339,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // Helper Widget for Team Logos
   Widget _buildTeamLogo(String? logoPath) {
-    // Consider adding a network image widget here if logoPath is a URL
     if (logoPath != null && logoPath.isNotEmpty) {
       // Check if it's a local file path
       if (logoPath.startsWith('/data/') || logoPath.startsWith('file://')) {

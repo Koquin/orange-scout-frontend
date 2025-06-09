@@ -79,7 +79,7 @@ class TeamController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/teams');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -133,7 +133,7 @@ class TeamController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/teams');
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
@@ -181,7 +181,7 @@ class TeamController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/teams/$teamId');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -233,7 +233,7 @@ class TeamController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/teams/$teamId');
-      final response = await _httpClient.delete(
+      final response = await http.delete(
         url,
         headers: {
           'Authorization': 'Bearer $token',

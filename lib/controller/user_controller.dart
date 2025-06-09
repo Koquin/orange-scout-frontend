@@ -75,7 +75,7 @@ class UserController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/app-users/premium'); // PADRONIZAÇÃO: /app-users/premium
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -128,7 +128,7 @@ class UserController {
 
     try {
       FirebaseCrashlytics.instance.log('Fetching user profile requires a dedicated backend /app-users/me endpoint or handling via login response data.');
-      return null; // Placeholder for now
+      return null;
     } catch (e, s) {
       FirebaseCrashlytics.instance.recordError(
         e, s,
@@ -156,7 +156,7 @@ class UserController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/app-users');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -199,7 +199,7 @@ class UserController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/app-users/$userId');
-      final response = await _httpClient.put(
+      final response = await http.put(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -241,7 +241,7 @@ class UserController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/app-users/$userId');
-      final response = await _httpClient.delete(
+      final response = await http.delete(
         url,
         headers: {
           'Authorization': 'Bearer $token',

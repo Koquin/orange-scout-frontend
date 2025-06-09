@@ -132,8 +132,8 @@ class _StatsScreenState extends State<StatsScreen> {
         teamsStats = teamStatsMap;
         availableTeams = teamStatsMap.keys.toList();
         isLoading = false;
-        matchLocationName = matchDetails.location?.venueName; // Use DTO property
-        matchLocationId = matchDetails.location?.id; // Use DTO property
+        matchLocationName = matchDetails.location?.venueName;
+        matchLocationId = matchDetails.location?.id;
       });
       FirebaseAnalytics.instance.logEvent(name: 'stats_fetched_successfully', parameters: {'match_id': widget.matchId, 'num_teams': availableTeams.length});
       FirebaseCrashlytics.instance.log('Stats fetched successfully for match ${widget.matchId}.');

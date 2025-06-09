@@ -68,7 +68,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches/last-unfinished');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -120,7 +120,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches/finish/$matchId');
-      final response = await _httpClient.put(
+      final response = await http.put(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -167,7 +167,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches');
-      final response = await _httpClient.post(
+      final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +218,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches/user-history');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -271,7 +271,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches/$matchId');
-      final response = await _httpClient.delete(
+      final response = await http.delete(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -318,7 +318,7 @@ class MatchController {
 
     try {
       final statsUrl = Uri.parse('${_getApiBaseUrl()}/stats/match/$matchId');
-      final response = await _httpClient.get(
+      final response = await http.get(
         statsUrl,
         headers: {
           'Authorization': 'Bearer $token',
@@ -369,7 +369,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches/$matchId');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -418,7 +418,7 @@ class MatchController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/matches/validate-start');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',

@@ -158,7 +158,7 @@ class LocationController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/locations/$locationId');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -213,7 +213,7 @@ class LocationController {
     // Use the `venueName` for a better search experience if available
     if (locationData.venueName.isNotEmpty) {
       // Corrected URL for place search with lat/long
-      googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(locationData.venueName)},${locationData.latitude},${locationData.longitude}';
+      googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}';
     } else {
       // Fallback to just coordinates if venueName is empty
       googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}';
@@ -263,7 +263,7 @@ class LocationController {
 
     try {
       final url = Uri.parse('${_getApiBaseUrl()}/locations');
-      final response = await _httpClient.get(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Bearer $token',
@@ -284,7 +284,7 @@ class LocationController {
         String googleMapsUrl;
         if (locations.length == 1) {
           final loc = locations[0];
-          googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(loc.venueName)},${loc.latitude},${loc.longitude}';
+          googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${loc.latitude},${loc.longitude}';
         } else {
           // For multiple markers on a map, use the 'q' parameter with multiple coordinates.
           // Example: https://www.google.com/maps/search/?api=1&query=34.0522,-118.2437;34.0549,-118.2426
